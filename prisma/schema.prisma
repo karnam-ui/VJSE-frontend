@@ -1,0 +1,76 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider        = "prisma-client-js"
+  output          = "../generated/prisma"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Lead {
+  id                 Int                 @id @default(autoincrement())
+  name               String
+  email              String
+  domain             String
+  organization       String
+  skills             String              @default("")
+  verified           Boolean             @default(false)
+  status             String              @default("Pending") // "Pending" | "Approved" | "Rejected"
+  rejectionReason    String              @default("")
+  invited            Boolean             @default(false)
+  createdAt          DateTime            @default(now())
+  connectionRequests ConnectionRequest[]
+  chatMessages       ChatMessage[]
+}
+
+model User {
+  id                 Int                 @id @default(autoincrement())
+  email              String              @unique
+  password           String
+  name               String
+  role               String              // "Student" | "Mentor" | "Founder" | "Volunteer" | "Admin"
+  createdAt          DateTime            @default(now())
+  startupProfile     StartupProfile?
+  connectionRequests ConnectionRequest[]
+  chatMessages       ChatMessage[]
+}
+
+model StartupProfile {
+  id          Int      @id @default(autoincrement())
+  userId      Int      @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  stage       String
+  focus       String
+  currentGoal String
+  createdAt   DateTime @default(now())
+}
+
+model ConnectionRequest {
+  id        Int      @id @default(autoincrement())
+  userId    Int      // Sender (Founder)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  leadId    Int      // Receiver (Lead)
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  status    String   // "Pending" | "Accepted" | "Rejected"
+  createdAt DateTime @default(now())
+
+  @@unique([userId, leadId])
+}
+
+model ChatMessage {
+  id        Int      @id @default(autoincrement())
+  userId    Int      // Sender or Receiver (Founder)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  leadId    Int      // Sender or Receiver (Lead)
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  sender    String   // "Founder" | "Lead" (to indicate who sent the message)
+  content   String
+  createdAt DateTime @default(now())
+}

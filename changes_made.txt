@@ -1,0 +1,104 @@
+CHANGES MADE SUMMARY - VJ STARTUPS PLATFORM
+==========================================
+
+PHASE 1: FOUNDER DASHBOARD & REAL-TIME CHAT
+-------------------------------------------
+
+1. DATABASE SCHEMA CHANGES
+--------------------------
+File: /Users/suhaas/Desktop/VJSE/VJSE-frontend/prisma/schema.prisma
+- Added 'skills' field (String, default "") to the Lead model.
+- Created 'StartupProfile' model (one-to-one relation with User) to manage startup metadata (Name, Stage, Focus, Current Goal).
+- Created 'ConnectionRequest' model (userId to leadId with status: Pending / Accepted / Rejected).
+- Created 'ChatMessage' model (userId, leadId, sender role, content, and createdAt timestamp) to store chat history securely.
+
+2. DATABASE SEEDING
+-------------------
+File: /Users/suhaas/Desktop/VJSE/VJSE-frontend/seed-all.js (Created)
+- Created a comprehensive seed script that intercepts better-sqlite3 with the SQLCipher password wrapper.
+- Seeds Users (including specific Founder accounts), Leads, Startup Profiles, Connection Requests, and Chat Messages into the encrypted 'dev.db'.
+
+3. EXPRESS BACKEND API DEVELOPMENTS
+-----------------------------------
+File: /Users/suhaas/Desktop/VJSE/VJSE-frontend/server.js
+- Modified POST /api/login:
+  * Implemented an approved email whitelist check for the Founder role: 'founder@vnrvjiet.in', 'founder2@vnrvjiet.in', 'suhaas@vnrvjiet.in'.
+  * Restricts login attempts from non-approved emails trying to access/assert the Founder role.
+- Implemented GET /api/startup and POST /api/startup to retrieve and save/update Startup Profiles.
+- Implemented GET /api/approved-leads to fetch verified leads, supporting domain, organization, and skills-based query filters.
+- Implemented GET /api/connections, POST /api/connections, and PATCH /api/connections/:id to manage, send, and mock-accept connection requests.
+- Implemented GET /api/chats and POST /api/chats to store and fetch chat history.
+- Programmed a real-time lead chatbot response simulator in POST /api/chats that responds after 1.5 seconds with contextually relevant messages based on message keywords (e.g. pilot partnerships, advisory requests).
+
+4. FRONTEND APPLICATION LAYOUT & ROUTING
+-----------------------------------------
+File: /Users/suhaas/Desktop/VJSE/VJSE-frontend/VJSE-frontend/src/app/App.tsx
+- Updated 'AppUser' and 'handleLogin' to store and propagate the logged-in user's database ID.
+- Imported and configured the '/founder' dashboard route using FounderPage.tsx.
+
+File: /Users/suhaas/Desktop/VJSE/VJSE-frontend/VJSE-frontend/src/app/components/TopNav.tsx
+- Modified the logged-in profile card to display a "Dashboard" link mapping the user to their role-specific dashboard (e.g. /founder for Founders, /student for Students, etc.).
+
+File: /Users/suhaas/Desktop/VJSE/VJSE-frontend/VJSE-frontend/src/app/components/RoleBadge.tsx
+- Fixed RoleBadgeProps to use the UserRole type for consistency.
+
+File: /Users/suhaas/Desktop/VJSE/VJSE-frontend/VJSE-frontend/src/app/pages/LoginPage.tsx
+- Changed the redirect path for the Founder role to '/founder'.
+- Added 'suhaas@vnrvjiet.in' with password 'founder123' to the quick-fill credentials panel.
+
+5. NEW FRONTEND DASHBOARD PAGE
+------------------------------
+File: /Users/suhaas/Desktop/VJSE/VJSE-frontend/VJSE-frontend/src/app/pages/FounderPage.tsx (Created)
+- Designed and built a premium, dark-mode Founder Hub containing three tabs:
+  * Tab 1 (My Startup Profile): Form to create/edit startup information with a live preview card.
+  * Tab 2 (Browse Approved Leads): Database search panel filtering leads by industry, organization, and skills. Displays connection status ("Requested", "Connected", "Declined") and features a "Mock Accept" button to simulate lead acceptance immediately.
+  * Tab 3 (Chats & Connections): Sidebar listing active connections. Opens a real-time message room showing conversation bubbles, user roles, message timestamps, and reactive reply polling.
+
+
+PHASE 2: VOLUNTEER REVIEW PANEL & DYNAMIC ROLE GATING
+-----------------------------------------------------
+
+1. DATABASE SCHEMA UPDATES
+--------------------------
+File: /Users/suhaas/Desktop/VJSE/VJSE-frontend/prisma/schema.prisma
+- Added 'status' field (String, default "Pending") to the Lead model to track lead review states ("Pending", "Approved", "Rejected").
+- Added 'rejectionReason' field (String, default "") to the Lead model to log volunteer feedback.
+- Added 'invited' field (Boolean, default false) to track invitations sent to approved leads.
+
+2. DYNAMIC EMAIL-TO-ROLE RESOLUTION (Zero Dummy Panels)
+--------------------------------------------------------
+File: /Users/suhaas/Desktop/VJSE/VJSE-frontend/VJSE-frontend/src/app/pages/LoginPage.tsx
+- Removed the helper card containing mock email buttons.
+- Centered the login card and updated the description to reflect constraint-based logins.
+
+File: /Users/suhaas/Desktop/VJSE/VJSE-frontend/server.js
+- Centralized the role resolution logic in the POST /api/login handler:
+  * Emails in whitelists are assigned as 'Founder' (founder@vnrvjiet.in, suhaas@vnrvjiet.in) or 'Admin' (admin@gmail.com, admin@vnrvjiet.in).
+  * Institution emails (@vnrvjiet.in) starting with 'volunteer' are assigned the 'Volunteer' role.
+  * All other institution emails (@vnrvjiet.in) are assigned the 'Student' role.
+  * Non-institution emails default to the 'Mentor' role.
+- Dynamically auto-registers new email sign-ins with their corresponding constraint-resolved roles and passwords.
+- Updates existing user roles in the database if their assigned role differs from their current email constraints.
+
+3. VOLUNTEER WORKSPACE & LEADS VERIFICATION
+-------------------------------------------
+File: /Users/suhaas/Desktop/VJSE/VJSE-frontend/VJSE-frontend/src/app/pages/VolunteerPage.tsx (Created)
+- Developed a high-fidelity volunteer review center integrated with the backend API:
+  * Pending Review Tab: Displays student submissions, with options to "Approve Lead" or "Reject Lead".
+  * Rejection Reason Dialog: A modal allowing volunteers to type a custom written explanation before submitting a rejection.
+  * Approved Leads Tab: Displays verified leads, with a "Send Join Invite" action.
+  * Rejected Leads Tab: Shows rejected leads alongside their logged written rejection reasons.
+  * Stats Cards: Displays live indicators for Pending (Yellow), Approved (Green), and Rejected (Red) counts.
+
+4. BACKEND REVIEW & SIMULATED INVITATIONS
+-----------------------------------------
+File: /Users/suhaas/Desktop/VJSE/VJSE-frontend/server.js
+- Updated legacy PATCH /api/leads/:id/verify to synchronize verified status with the status field.
+- Implemented PATCH /api/leads/:id/approve to approve leads, set verified to true, and clear previous rejection reasons.
+- Implemented PATCH /api/leads/:id/reject to set verified to false, set status to 'Rejected', and store the custom explanation.
+- Implemented POST /api/leads/:id/invite to mark lead as invited and print/log the generated invite email to the server console.
+
+5. SEED DATA REVISION
+---------------------
+File: /Users/suhaas/Desktop/VJSE/VJSE-frontend/seed-all.js
+- Updated the seeder script to populate leads with status tags matching their verified attributes.
