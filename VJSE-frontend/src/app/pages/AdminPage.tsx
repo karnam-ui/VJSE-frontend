@@ -13,94 +13,14 @@ interface AdminPageProps {
   onLogin: () => void;
 }
 
-export function AdminPage({ user, onLogin }: AdminPageProps) {
-  const [dbLeads, setDbLeads] = useState<any[]>([]);
-  const [dbConnections, setDbConnections] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+export function AdminPage() {
+  const [leads, setLeads] = useState(initialLeads);
+  const [introRequests, setIntroRequests] = useState(initialRequests);
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [filterCity, setFilterCity] = useState("");
   const [filterDomain, setFilterDomain] = useState("");
   const [filterOrg, setFilterOrg] = useState("");
   const [filterStatus, setFilterStatus] = useState("All");
-
-  async function fetchData() {
-    setLoading(true);
-    setError("");
-    try {
-      const [leadsRes, connectionsRes] = await Promise.all([
-        fetch("http://localhost:3000/api/leads"),
-        fetch("http://localhost:3000/api/connections")
-      ]);
-
-      if (leadsRes.ok) {
-        const leadsData = await leadsRes.json();
-        setDbLeads(leadsData);
-      } else {
-        setError("Failed to fetch leads.");
-      }
-
-      if (connectionsRes.ok) {
-        const connectionsData = await connectionsRes.json();
-        setDbConnections(connectionsData);
-      } else {
-        setError("Failed to fetch connection requests.");
-      }
-    } catch (err) {
-      console.error(err);
-      setError("Failed to connect to backend server.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    if (user && user.role === "Admin") {
-      fetchData();
-    }
-  }, [user]);
-
-  if (!user) {
-    return <LoginGate onLogin={onLogin} />;
-  }
-
-  if (user.role !== "Admin") {
-    return (
-      <div className="mx-auto max-w-md text-center py-20 space-y-4">
-        <h2 className="text-2xl font-bold text-white">Access Denied</h2>
-        <p className="text-[#9CA3AF]">You must be logged in as an Admin to view this page.</p>
-      </div>
-    );
-  }
-
-  const leads = useMemo(() => {
-    return dbLeads.map((l: any) => ({
-      id: String(l.id),
-      name: l.name,
-      role: "Professional",
-      organisationType: "Corporate",
-      organisation: l.organization,
-      city: "Hyderabad",
-      domains: [l.domain],
-      helps: l.skills ? l.skills.split(",").map((s: string) => s.trim()) : [],
-      referredBy: "Student Referral",
-      verified: l.verified,
-      submittedOn: l.createdAt ? l.createdAt.split("T")[0] : new Date().toISOString().split("T")[0],
-    }));
-  }, [dbLeads]);
-
-  const introRequests = useMemo(() => {
-    return dbConnections.map((c: any) => ({
-      id: String(c.id),
-      founder: c.user?.name || "Unknown Founder",
-      email: c.user?.email || "unknown@domain.com",
-      leadName: c.lead?.name || "Unknown Lead",
-      leadRole: "Professional",
-      leadOrg: c.lead?.organization || "Unknown Org",
-      timestamp: c.createdAt ? new Date(c.createdAt).toLocaleDateString() : "Just now",
-      handled: c.status === "Accepted" || c.status === "Rejected"
-    }));
-  }, [dbConnections]);
 
   const filteredLeads = useMemo(() => {
     return leads.filter((lead) => {
@@ -111,8 +31,8 @@ export function AdminPage({ user, onLogin }: AdminPageProps) {
         filterStatus === "All"
           ? true
           : filterStatus === "Verified"
-          ? lead.verified
-          : !lead.verified;
+            ? lead.verified
+            : !lead.verified;
       return cityMatch && orgMatch && domainMatch && statusMatch;
     });
   }, [filterCity, filterDomain, filterOrg, filterStatus, leads]);
@@ -145,52 +65,18 @@ export function AdminPage({ user, onLogin }: AdminPageProps) {
     URL.revokeObjectURL(url);
   }
 
-  async function handleVerifyToggle(id: string) {
-    const lead = leads.find((l) => l.id === id);
-    if (!lead) return;
-
-    try {
-      const res = await fetch(`http://localhost:3000/api/leads/${id}/verify`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ verified: !lead.verified })
-      });
-      if (res.ok) {
-        fetchData();
-      }
-    } catch (err) {
-      console.error("Failed to toggle verification status:", err);
-    }
+  function handleVerifyToggle(id: string) {
+    setLeads((current) => current.map((lead) => (lead.id === id ? { ...lead, verified: !lead.verified } : lead)));
   }
 
-  async function confirmDelete() {
+  function confirmDelete() {
     if (!selectedLeadId) return;
-    try {
-      const res = await fetch(`http://localhost:3000/api/leads/${selectedLeadId}`, {
-        method: "DELETE"
-      });
-      if (res.ok) {
-        setSelectedLeadId(null);
-        fetchData();
-      }
-    } catch (err) {
-      console.error("Failed to delete lead:", err);
-    }
+    setLeads((current) => current.filter((lead) => lead.id !== selectedLeadId));
+    setSelectedLeadId(null);
   }
 
-  async function markHandled(id: string) {
-    try {
-      const res = await fetch(`http://localhost:3000/api/connections/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "Accepted" })
-      });
-      if (res.ok) {
-        fetchData();
-      }
-    } catch (err) {
-      console.error("Failed to mark request as handled:", err);
-    }
+  function markHandled(id: string) {
+    setIntroRequests((current) => current.map((item) => (item.id === id ? { ...item, handled: true } : item)));
   }
 
   return (
@@ -330,44 +216,44 @@ export function AdminPage({ user, onLogin }: AdminPageProps) {
                       <TableCell>{lead.city}</TableCell>
                       <TableCell>{lead.referredBy}</TableCell>
                       <TableCell>{lead.verified ? "Verified" : "Unverified"}</TableCell>
-                    <TableCell className="flex flex-wrap gap-2">
-                      <Switch
-                        checked={lead.verified}
-                        onCheckedChange={() => handleVerifyToggle(lead.id)}
-                      />
-                      <Dialog>
-                      <DialogTrigger asChild>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          className="border-[#EF4444] text-white"
-                          onClick={() => setSelectedLeadId(lead.id)}
-                        >
-                          Delete
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="rounded-[32px] bg-[#111111] border border-[#1F2937] p-6">
-                        <DialogHeader>
-                          <DialogTitle>Delete this lead?</DialogTitle>
-                          <DialogDescription className="text-[#9CA3AF]">
-                            This action will remove the lead from the list. It cannot be undone.
-                          </DialogDescription>
-                        </DialogHeader>
-                        <DialogFooter>
-                          <Button variant="outline" className="border-[#3B82F6] text-[#3B82F6]">
-                            Cancel
-                          </Button>
-                          <DialogClose asChild>
-                            <Button variant="destructive" onClick={confirmDelete}>
+                      <TableCell className="flex flex-wrap gap-2">
+                        <Switch
+                          checked={lead.verified}
+                          onCheckedChange={() => handleVerifyToggle(lead.id)}
+                        />
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              className="border-[#EF4444] text-white"
+                              onClick={() => setSelectedLeadId(lead.id)}
+                            >
                               Delete
                             </Button>
-                          </DialogClose>
-                        </DialogFooter>
-                      </DialogContent>
-                    </Dialog>
-                    </TableCell>
-                  </TableRow>
-                )))}
+                          </DialogTrigger>
+                          <DialogContent className="rounded-[32px] bg-[#111111] border border-[#1F2937] p-6">
+                            <DialogHeader>
+                              <DialogTitle>Delete this lead?</DialogTitle>
+                              <DialogDescription className="text-[#9CA3AF]">
+                                This action will remove the lead from the list. It cannot be undone.
+                              </DialogDescription>
+                            </DialogHeader>
+                            <DialogFooter>
+                              <Button variant="outline" className="border-[#3B82F6] text-[#3B82F6]">
+                                Cancel
+                              </Button>
+                              <DialogClose asChild>
+                                <Button variant="destructive" onClick={confirmDelete}>
+                                  Delete
+                                </Button>
+                              </DialogClose>
+                            </DialogFooter>
+                          </DialogContent>
+                        </Dialog>
+                      </TableCell>
+                    </TableRow>
+                  )))}
               </TableBody>
             </Table>
           </TabsContent>
