@@ -80,7 +80,10 @@ export default function App() {
               path="/submit-lead"
               element={<SubmitLeadPage user={user} onLogin={() => handleLogin("Student")} onSubmit={handleSubmitSuccess} />}
             />
-            <Route path="/leads" element={<LeadsPage />} />
+            <Route
+              path="/leads"
+              element={<LeadsPage user={user} onLogin={() => handleLogin("Mentor")} />}
+            />
             <Route path="/search" element={<SearchPage user={user} onLogin={() => handleLogin("Founder")} />} />
             <Route path="/founder" element={<FounderPage user={user} onLogin={() => handleLogin("Founder")} />} />
             <Route path="/volunteer" element={<VolunteerPage user={user} onLogin={() => handleLogin("Volunteer")} />} />

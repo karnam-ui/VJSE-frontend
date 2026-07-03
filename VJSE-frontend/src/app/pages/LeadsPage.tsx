@@ -3,111 +3,202 @@ import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";
 import { Input } from "../components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
-import { domainOptions, cityOptions, organisationTypes } from "../data/network";
+import { LoginGate } from "../components/LoginGate";
+import { AlertCircle, RefreshCw, MessageSquare, Send } from "lucide-react";
+import { UserRole } from "../data/network";
 
-const mentorStartups = [
-  {
-    id: "startup-01",
-    name: "FarmChain",
-    stage: "Growth",
-    focus: "AgriTech supply chain",
-    currentGoal: "Scale partnerships with retailers",
-  },
-  {
-    id: "startup-02",
-    name: "BrightBridge Labs",
-    stage: "Early",
-    focus: "HealthTech data analytics",
-    currentGoal: "Secure first pilots",
-  },
-  {
-    id: "startup-03",
-    name: "EventHive",
-    stage: "Seed",
-    focus: "Event discovery platform",
-    currentGoal: "Expand student user base",
-  },
-];
+interface LeadsPageProps {
+  user: { id: number; fullName: string; email: string; role: UserRole } | null;
+  onLogin: () => void;
+}
 
-export function LeadsPage() {
+export function LeadsPage({ user, onLogin }: LeadsPageProps) {
   const [leads, setLeads] = useState<any[]>([]);
-  const [query, setQuery] = useState("");
-  const [domain, setDomain] = useState("");
-  const [city, setCity] = useState("");
-  const [organisationType, setOrganisationType] = useState("");
-  const [selectedStartupId, setSelectedStartupId] = useState("startup-01");
+  const [connections, setConnections] = useState<any[]>([]);
+  const [startups, setStartups] = useState<any[]>([]);
+  const [leadRecord, setLeadRecord] = useState<any | null>(null);
+  
+  const [selectedStartupId, setSelectedStartupId] = useState<number | null>(null);
+  const [messages, setMessages] = useState<any[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [sendingMessage, setSendingMessage] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    fetchLeads();
-  }, []);
+    if (user && user.role === "Mentor") {
+      fetchMentorData();
+    }
+  }, [user]);
 
-  async function fetchLeads() {
+  async function fetchMentorData() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch("http://localhost:3000/api/approved-leads");
-      if (res.ok) {
-        const raw = await res.json();
-        const mapped = raw.map((l: any) => ({
-          id: String(l.id),
-          name: l.name,
-          role: l.skills || "Mentor",
-          organisationType: "Corporate",
-          organisation: l.organization,
-          city: "Hyderabad",
-          domains: [l.domain],
-          helps: l.skills ? l.skills.split(", ") : [],
-          referredBy: "Platform",
-          verified: l.verified
-        }));
-        setLeads(mapped);
-      } else {
-        setError("Failed to fetch leads");
+      // 1. Fetch all leads to find the matching lead record
+      const leadsRes = await fetch("http://localhost:3000/api/leads");
+      if (!leadsRes.ok) throw new Error("Failed to fetch leads");
+      const leadsData = await leadsRes.json();
+      setLeads(leadsData);
+
+      const matchingLead = leadsData.find((l: any) => l.email.toLowerCase() === user?.email.toLowerCase());
+      setLeadRecord(matchingLead || null);
+
+      if (matchingLead) {
+        // 2. Fetch connections
+        const connRes = await fetch("http://localhost:3000/api/connections");
+        if (connRes.ok) {
+          const connData = await connRes.json();
+          setConnections(connData);
+        }
+
+        // 3. Fetch startups
+        const startupsRes = await fetch("http://localhost:3000/api/startups");
+        if (startupsRes.ok) {
+          const startupsData = await startupsRes.json();
+          setStartups(startupsData);
+        }
       }
     } catch (err) {
       console.error(err);
-      setError("Failed to connect to backend");
+      setError("Failed to connect to the backend server.");
     } finally {
       setLoading(false);
     }
   }
 
-  const chatThreads: Record<string, Array<{ author: string; content: string; time: string }>> = {
-    "startup-01": [
-      { author: "Mentor", content: "Hi team, how is the pilot plan going?", time: "10:04 AM" },
-      { author: "FarmChain", content: "We have 3 new retail partners lined up this week.", time: "10:07 AM" },
-      { author: "Mentor", content: "Great, let's prioritize the logistics integration.", time: "10:12 AM" },
-    ],
-    "startup-02": [
-      { author: "Mentor", content: "Do we have updates from the clinic trials?", time: "09:35 AM" },
-      { author: "BrightBridge Labs", content: "Yes, we received positive feedback on the analytics dashboard.", time: "09:42 AM" },
-      { author: "Mentor", content: "Let's get the next pilot scheduled.", time: "09:50 AM" },
-    ],
-    "startup-03": [
-      { author: "Mentor", content: "How are engagement numbers on campus?", time: "11:20 AM" },
-      { author: "EventHive", content: "We launched 4 new event promotions and doubled signups.", time: "11:28 AM" },
-      { author: "Mentor", content: "Nice work, keep the momentum going.", time: "11:35 AM" },
-    ],
-  };
+  const mentoredStartups = useMemo(() => {
+    if (!leadRecord || connections.length === 0 || startups.length === 0) return [];
+    
+    // Find accepted connection requests for this lead
+    const acceptedConns = connections.filter(
+      (c) => c.leadId === leadRecord.id && c.status === "Accepted"
+    );
 
-  const selectedStartup = mentorStartups.find((startup) => startup.id === selectedStartupId) ?? mentorStartups[0];
-
-  const filteredLeads = useMemo(() => {
-    return leads.filter((lead) => {
-      const searchMatch = query
-        ? [lead.name, lead.role, lead.organisation, lead.city, lead.referredBy]
-            .join(" ")
-            .toLowerCase()
-            .includes(query.toLowerCase())
-        : true;
-      const cityMatch = city ? lead.city === city : true;
-      const orgMatch = organisationType ? lead.organisationType === organisationType : true;
-      const domainMatch = domain ? lead.domains.includes(domain) : true;
-      return searchMatch && cityMatch && orgMatch && domainMatch;
+    // Map accepted connections to the corresponding startups
+    return acceptedConns.map((c) => {
+      const startup = startups.find((s) => s.userId === c.userId);
+      return {
+        id: startup?.id || c.userId,
+        userId: c.userId, // Founder userId
+        name: startup?.name || c.user?.name || "Unnamed Startup",
+        stage: startup?.stage || "Unknown Stage",
+        focus: startup?.focus || "General Tech",
+        currentGoal: startup?.currentGoal || "No current strategic goal listed.",
+      };
     });
-  }, [city, domain, organisationType, query, leads]);
+  }, [leadRecord, connections, startups]);
+
+  const selectedStartup = useMemo(() => {
+    if (mentoredStartups.length === 0) return null;
+    return mentoredStartups.find((s) => s.id === selectedStartupId) || mentoredStartups[0];
+  }, [selectedStartupId, mentoredStartups]);
+
+  // Set default active startup ID
+  useEffect(() => {
+    if (mentoredStartups.length > 0 && selectedStartupId === null) {
+      setSelectedStartupId(mentoredStartups[0].id);
+    }
+  }, [mentoredStartups, selectedStartupId]);
+
+  // Poll chats every 3 seconds for active startup
+  useEffect(() => {
+    if (user && leadRecord && selectedStartup) {
+      fetchChats(selectedStartup.userId, leadRecord.id);
+      const interval = setInterval(() => {
+        fetchChats(selectedStartup.userId, leadRecord.id);
+      }, 3000);
+      return () => clearInterval(interval);
+    }
+  }, [selectedStartup, leadRecord, user]);
+
+  async function fetchChats(founderId: number, leadId: number) {
+    try {
+      const res = await fetch(`http://localhost:3000/api/chats?userId=${founderId}&leadId=${leadId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setMessages(data);
+      }
+    } catch (err) {
+      console.error("Error fetching chats:", err);
+    }
+  }
+
+  async function handleSendMessage(e: React.FormEvent) {
+    e.preventDefault();
+    if (!chatInput.trim() || !user || !leadRecord || !selectedStartup) return;
+
+    const messageText = chatInput;
+    setChatInput("");
+    setSendingMessage(true);
+
+    try {
+      const res = await fetch("http://localhost:3000/api/chats", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: selectedStartup.userId,
+          leadId: leadRecord.id,
+          sender: "Lead",
+          content: messageText,
+        }),
+      });
+
+      if (res.ok) {
+        await fetchChats(selectedStartup.userId, leadRecord.id);
+      }
+    } catch (err) {
+      console.error("Error sending message:", err);
+    } finally {
+      setSendingMessage(false);
+    }
+  }
+
+  if (!user) {
+    return <LoginGate onLogin={onLogin} />;
+  }
+
+  if (user.role !== "Mentor") {
+    return (
+      <div className="mx-auto max-w-4xl px-4 py-12 text-center text-red-500">
+        <h2 className="text-2xl font-bold">Access Restricted</h2>
+        <p className="mt-2 text-sm text-[#9CA3AF]">You do not have permission to view the Mentor dashboard.</p>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="text-center text-sm text-[#9CA3AF] py-12">
+        Loading mentor workspace...
+      </div>
+    );
+  }
+
+  if (!leadRecord && !loading) {
+    return (
+      <div className="mx-auto max-w-4xl px-4 py-12 text-center">
+        <Card className="rounded-[28px] border border-[#1F2937] bg-[#111111] p-8 shadow-xl">
+          <AlertCircle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-white">Mentor Profile Not Found</h2>
+          <p className="mt-4 text-sm text-[#9CA3AF] max-w-lg mx-auto leading-relaxed">
+            Your login email <span className="text-white font-semibold">{user.email}</span> does not match any approved Lead record in the database. 
+          </p>
+          <p className="mt-2 text-sm text-[#9CA3AF] max-w-lg mx-auto leading-relaxed">
+            To view mentored startups, a student must submit your profile as a lead, and it must be verified by a Startup Cell volunteer.
+          </p>
+          <div className="mt-6 flex justify-center gap-4">
+            <Button
+              onClick={fetchMentorData}
+              className="bg-[#3B82F6] hover:bg-[#2563EB] text-white"
+            >
+              <RefreshCw className="mr-2 h-4 w-4" /> Check Again
+            </Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 px-4 py-10 sm:px-6 lg:px-8">
@@ -125,193 +216,177 @@ export function LeadsPage() {
         </div>
       )}
 
-      {loading && (
-        <div className="text-center text-sm text-[#9CA3AF] py-6">
-          Loading mentor leads from database...
-        </div>
-      )}
-
       <div className="grid gap-4 md:grid-cols-3">
         <Card className="rounded-[24px] border border-[#1F2937] bg-[#111111] p-6 shadow-sm">
           <p className="text-sm uppercase tracking-[0.28em] text-[#9CA3AF]">Connected startups</p>
-          <p className="mt-4 text-3xl font-semibold text-[#3B82F6]">{mentorStartups.length}</p>
+          <p className="mt-4 text-3xl font-semibold text-[#3B82F6]">{mentoredStartups.length}</p>
         </Card>
         <Card className="rounded-[24px] border border-[#1F2937] bg-[#111111] p-6 shadow-sm">
           <p className="text-sm uppercase tracking-[0.28em] text-[#9CA3AF]">Active chats</p>
-          <p className="mt-4 text-3xl font-semibold text-[#22C55E]">{mentorStartups.length}</p>
+          <p className="mt-4 text-3xl font-semibold text-[#22C55E]">{mentoredStartups.length}</p>
         </Card>
         <Card className="rounded-[24px] border border-[#1F2937] bg-[#111111] p-6 shadow-sm">
-          <p className="text-sm uppercase tracking-[0.28em] text-[#9CA3AF]">Verified leads</p>
-          <p className="mt-4 text-3xl font-semibold text-[#F59E0B]">{filteredLeads.filter((lead) => lead.verified).length}</p>
+          <p className="text-sm uppercase tracking-[0.28em] text-[#9CA3AF]">Platform Approved Leads</p>
+          <p className="mt-4 text-3xl font-semibold text-[#F59E0B]">{leads.filter((lead) => lead.verified).length}</p>
         </Card>
       </div>
 
-      <Card className="rounded-[28px] border border-[#1F2937] bg-[#111111] p-6 shadow-xl">
-        <div className="grid gap-4 lg:grid-cols-[1.7fr_1fr] xl:grid-cols-[2fr_1fr]">
-          <div className="space-y-4">
-            <Input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search startups, roles, or locations..."
-              className="bg-[#111111] text-white"
-            />
-          </div>
-          <div className="grid gap-4 sm:grid-cols-3">
-            <select
-              value={domain}
-              onChange={(event) => setDomain(event.target.value)}
-              className="rounded-xl border border-[#27272A] bg-[#111111] px-4 py-3 text-sm text-white outline-none focus:border-[#3B82F6]"
-            >
-              <option value="">Domain</option>
-              {domainOptions.map((option) => (
-                <option key={option} value={option}>{option}</option>
-              ))}
-            </select>
-            <select
-              value={city}
-              onChange={(event) => setCity(event.target.value)}
-              className="rounded-xl border border-[#27272A] bg-[#111111] px-4 py-3 text-sm text-white outline-none focus:border-[#3B82F6]"
-            >
-              <option value="">City</option>
-              {cityOptions.map((option) => (
-                <option key={option} value={option}>{option}</option>
-              ))}
-            </select>
-            <select
-              value={organisationType}
-              onChange={(event) => setOrganisationType(event.target.value)}
-              className="rounded-xl border border-[#27272A] bg-[#111111] px-4 py-3 text-sm text-white outline-none focus:border-[#3B82F6]"
-            >
-              <option value="">Org Type</option>
-              {organisationTypes.map((option) => (
-                <option key={option} value={option}>{option}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </Card>
-
-      <div className="grid gap-4 xl:grid-cols-3">
-        {mentorStartups.map((startup) => (
-          <Card key={startup.id} className="rounded-[24px] border border-[#1F2937] bg-[#111111] p-6 shadow-sm">
-            <div className="space-y-4">
-              <div>
-                <p className="text-sm uppercase tracking-[0.24em] text-[#9CA3AF]">{startup.stage}</p>
-                <h2 className="mt-3 text-2xl font-semibold text-white">{startup.name}</h2>
-                <p className="mt-2 text-sm text-[#D1D5DB]">{startup.focus}</p>
-              </div>
-              <div className="space-y-2 rounded-3xl bg-[#141414] p-4 text-sm text-[#9CA3AF]">
-                <p>Current goal: {startup.currentGoal}</p>
-              </div>
-              <Button
-                variant="outline"
-                className="border-[#3B82F6] text-[#3B82F6] hover:bg-[#1D4ED8]/10"
+      {mentoredStartups.length === 0 ? (
+        <Card className="rounded-[28px] border border-[#1F2937] bg-[#111111] p-12 text-center text-[#9CA3AF]">
+          <MessageSquare className="h-10 w-10 text-gray-600 mx-auto mb-3" />
+          <p className="text-lg font-semibold text-white">No active startup connections found</p>
+          <p className="text-sm mt-1">Once a founder requests introduction and connects, their startup will appear here.</p>
+        </Card>
+      ) : (
+        <>
+          <div className="grid gap-4 xl:grid-cols-3">
+            {mentoredStartups.map((startup) => (
+              <Card 
+                key={startup.id} 
                 onClick={() => setSelectedStartupId(startup.id)}
+                className={`cursor-pointer rounded-[24px] border p-6 shadow-sm transition duration-200 ${
+                  selectedStartup?.id === startup.id 
+                    ? "border-[#3B82F6] bg-[#3B82F6]/5" 
+                    : "border-[#1F2937] bg-[#111111] hover:border-gray-800"
+                }`}
               >
-                View chat
-              </Button>
-            </div>
-          </Card>
-        ))}
-      </div>
-
-      <Card className="rounded-[28px] border border-[#1F2937] bg-[#111111] p-6 shadow-xl">
-        <div className="grid gap-6 lg:grid-cols-[1.2fr_1fr]">
-          <div className="space-y-4">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-sm uppercase tracking-[0.3em] text-[#3B82F6]/80">Chat window</p>
-                <h2 className="text-2xl font-semibold text-white">{selectedStartup.name} conversation</h2>
-              </div>
-              <span className="rounded-full bg-[#111111] px-4 py-2 text-sm text-[#9CA3AF]">
-                {selectedStartup.stage}
-              </span>
-            </div>
-            <div className="space-y-4 overflow-y-auto rounded-[24px] border border-[#27272A] bg-[#0F172A] p-5 text-sm text-[#D1D5DB] max-h-[420px]">
-              {chatThreads[selectedStartup.id].map((message, index) => (
-                <div key={index} className={message.author === "Mentor" ? "text-right" : "text-left"}>
-                  <div className="inline-block rounded-3xl px-4 py-3 text-sm leading-6 shadow-sm shadow-black/20">
-                    <p className="font-semibold text-white">{message.author}</p>
-                    <p className="mt-1">{message.content}</p>
-                    <p className="mt-2 text-xs text-[#9CA3AF]">{message.time}</p>
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-sm uppercase tracking-[0.24em] text-[#9CA3AF]">{startup.stage} Stage</p>
+                    <h2 className="mt-3 text-2xl font-semibold text-white">{startup.name}</h2>
+                    <p className="mt-2 text-sm text-[#D1D5DB]">Industry: {startup.focus}</p>
+                  </div>
+                  <div className="space-y-2 rounded-2xl bg-[#0A0A0A] p-4 text-xs text-[#9CA3AF] border border-[#1F2937]/50">
+                    <p className="font-semibold text-white">Current goal:</p>
+                    <p className="mt-1 leading-relaxed">{startup.currentGoal}</p>
                   </div>
                 </div>
-              ))}
-            </div>
+              </Card>
+            ))}
           </div>
-          <div className="rounded-[24px] border border-[#27272A] bg-[#141414] p-6">
-            <p className="text-sm uppercase tracking-[0.3em] text-[#9CA3AF]">Startup details</p>
-            <div className="mt-6 space-y-4">
-              <div>
-                <p className="text-sm text-[#9CA3AF]">Startup</p>
-                <p className="mt-2 text-lg font-semibold text-white">{selectedStartup.name}</p>
+
+          {selectedStartup && (
+            <Card className="rounded-[28px] border border-[#1F2937] bg-[#111111] p-6 shadow-xl">
+              <div className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
+                <div className="space-y-4 flex flex-col justify-between">
+                  <div className="flex items-center justify-between gap-4 border-b border-[#1F2937] pb-4">
+                    <div>
+                      <p className="text-sm uppercase tracking-[0.3em] text-[#3B82F6]/80">Chat window</p>
+                      <h2 className="text-2xl font-semibold text-white">{selectedStartup.name} Conversation</h2>
+                    </div>
+                    <span className="rounded-full bg-[#0A0A0A] border border-[#1F2937] px-4 py-2 text-sm text-[#9CA3AF]">
+                      {selectedStartup.stage} Stage
+                    </span>
+                  </div>
+
+                  {/* Chats */}
+                  <div className="space-y-4 overflow-y-auto rounded-[24px] border border-[#27272A] bg-[#0A0A0A] p-5 text-sm text-[#D1D5DB] max-h-[350px] min-h-[250px]">
+                    {messages.length === 0 ? (
+                      <div className="h-full flex flex-col items-center justify-center text-[#9CA3AF] py-12">
+                        <MessageSquare className="h-10 w-10 text-gray-700 mb-2" />
+                        <p className="text-sm font-semibold text-white">No messages yet</p>
+                        <p className="text-xs mt-1">Send a message to start conversing with the founder!</p>
+                      </div>
+                    ) : (
+                      messages.map((message) => {
+                        const isLead = message.sender === "Lead";
+                        return (
+                          <div key={message.id} className={isLead ? "text-right" : "text-left"}>
+                            <div className={`inline-block rounded-2xl px-4 py-2.5 text-sm shadow-sm ${
+                              isLead 
+                                ? "bg-[#3B82F6] text-white rounded-br-none" 
+                                : "bg-[#111111] text-white border border-[#1F2937] rounded-bl-none"
+                            }`}>
+                              <p className="font-semibold text-white">{isLead ? "You (Mentor)" : "Founder"}</p>
+                              <p className="mt-1 leading-relaxed">{message.content}</p>
+                              <span className={`block text-[9px] mt-1.5 ${isLead ? "text-[#E0F2FE]/70" : "text-[#9CA3AF]"}`}>
+                                {new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  {/* Send Chat */}
+                  <form onSubmit={handleSendMessage} className="flex gap-2 border-t border-[#1F2937] pt-4">
+                    <Input
+                      placeholder={`Type a message to ${selectedStartup.name} founder...`}
+                      value={chatInput}
+                      onChange={(e) => setChatInput(e.target.value)}
+                      className="flex-1 bg-[#0A0A0A] border-[#1F2937] focus:border-[#3B82F6] text-white rounded-xl h-11"
+                    />
+                    <Button
+                      type="submit"
+                      disabled={sendingMessage || !chatInput.trim()}
+                      className="bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-xl px-4 h-11"
+                    >
+                      <Send className="h-4 w-4" />
+                    </Button>
+                  </form>
+                </div>
+
+                <div className="rounded-[24px] border border-[#27272A] bg-[#0A0A0A] p-6 space-y-6">
+                  <p className="text-sm uppercase tracking-[0.3em] text-[#9CA3AF] border-b border-[#1F2937] pb-3">Startup details</p>
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-xs uppercase text-[#9CA3AF]">Startup Name</p>
+                      <p className="mt-1 text-lg font-bold text-white">{selectedStartup.name}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase text-[#9CA3AF]">Sector / Focus</p>
+                      <p className="mt-1 text-white">{selectedStartup.focus}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase text-[#9CA3AF]">Development Stage</p>
+                      <p className="mt-1 text-white">{selectedStartup.stage}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase text-[#9CA3AF]">Active Mentorship Goals</p>
+                      <p className="mt-1 text-white leading-relaxed text-sm">{selectedStartup.currentGoal}</p>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div>
-                <p className="text-sm text-[#9CA3AF]">Focus</p>
-                <p className="mt-2 text-white">{selectedStartup.focus}</p>
-              </div>
-              <div>
-                <p className="text-sm text-[#9CA3AF]">Goal</p>
-                <p className="mt-2 text-white">{selectedStartup.currentGoal}</p>
-              </div>
-              <div>
-                <p className="text-sm text-[#9CA3AF]">Related leads</p>
-                <p className="mt-2 text-white">{filteredLeads.slice(0, 3).map((lead) => lead.name).join(", ")}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </Card>
+            </Card>
+          )}
+        </>
+      )}
+
+      {/* Network table of leads */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <p className="text-sm uppercase tracking-[0.3em] text-[#3B82F6]/80">All mentor leads</p>
-            <h2 className="text-2xl font-semibold text-white">Startups and conversations</h2>
-          </div>
+        <div>
+          <p className="text-sm uppercase tracking-[0.3em] text-[#3B82F6]/80">All platform leads</p>
+          <h2 className="text-2xl font-semibold text-white">Professional Leads Directory</h2>
         </div>
-        <div className="overflow-x-auto rounded-[24px] border border-[#27272A] bg-[#0F172A]/70 p-4">
+        <div className="overflow-x-auto rounded-[24px] border border-[#27272A] bg-[#0A0A0A] p-4">
           <Table>
             <TableHeader>
               <TableRow className="text-[#9CA3AF]">
-                <TableHead>Startup</TableHead>
-                <TableHead>Lead</TableHead>
-                <TableHead>Org</TableHead>
+                <TableHead>Mentor Name</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Organization</TableHead>
                 <TableHead>Domain</TableHead>
-                <TableHead>City</TableHead>
                 <TableHead>Status</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-6 text-[#9CA3AF]">
-                    Loading leads from database...
+              {leads.map((l) => (
+                <TableRow key={l.id}>
+                  <TableCell className="text-white font-semibold">{l.name}</TableCell>
+                  <TableCell>{l.email}</TableCell>
+                  <TableCell>{l.organization}</TableCell>
+                  <TableCell>{l.domain}</TableCell>
+                  <TableCell>
+                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                      l.verified ? "bg-[#22C55E]/15 text-[#22C55E]" : "bg-[#F59E0B]/15 text-[#F59E0B]"
+                    }`}>
+                      {l.verified ? "Verified" : "Pending"}
+                    </span>
                   </TableCell>
                 </TableRow>
-              ) : error ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-6 text-red-500">
-                    {error}
-                  </TableCell>
-                </TableRow>
-              ) : filteredLeads.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-6 text-[#9CA3AF]">
-                    No leads found.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filteredLeads.map((lead) => (
-                  <TableRow key={lead.id}>
-                    <TableCell className="text-white">{lead.name}</TableCell>
-                    <TableCell>{lead.role}</TableCell>
-                    <TableCell>{lead.organisation}</TableCell>
-                    <TableCell>{lead.domains.join(", ")}</TableCell>
-                    <TableCell>{lead.city}</TableCell>
-                    <TableCell>{lead.verified ? "Verified" : "Pending"}</TableCell>
-                  </TableRow>
-                ))
-              )}
+              ))}
             </TableBody>
           </Table>
         </div>

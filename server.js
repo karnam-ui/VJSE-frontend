@@ -547,8 +547,44 @@ app.post('/api/leads/:id/invite', async (req, res) => {
   }
 });
 
+// --- ADDITIONAL API ENDPOINTS ---
+
+// GET /api/startups - Retrieve all startup profiles
+app.get('/api/startups', async (req, res) => {
+  try {
+    const profiles = await prisma.startupProfile.findMany({
+      include: {
+        user: true
+      }
+    });
+    res.json(profiles);
+  } catch (error) {
+    console.error("Error fetching startup profiles:", error);
+    res.status(500).json({ error: "Failed to fetch startup profiles" });
+  }
+});
+
+// GET /api/stats - Retrieve platform-wide stats
+app.get('/api/stats', async (req, res) => {
+  try {
+    const totalLeads = await prisma.lead.count();
+    const verifiedLeads = await prisma.lead.count({ where: { verified: true } });
+    const totalStartups = await prisma.startupProfile.count();
+
+    res.json({
+      totalLeads,
+      verifiedLeads,
+      totalStartups
+    });
+  } catch (error) {
+    console.error("Error fetching platform stats:", error);
+    res.status(500).json({ error: "Failed to fetch platform stats" });
+  }
+});
+
 // Start Server
 app.listen(PORT, () => {
   console.log(`🚀 Express API server running on http://localhost:${PORT}`);
   console.log(`📂 Connected to SQLCipher-encrypted SQLite DB (dev.db)`);
 });
+
