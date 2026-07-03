@@ -31,6 +31,8 @@ export function SubmitLeadPage({ user, onLogin, onSubmit }: SubmitLeadPageProps)
   const [selectedDomains, setSelectedDomains] = useState<string[]>([]);
   const [selectedHelps, setSelectedHelps] = useState<string[]>([]);
   const [consent, setConsent] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   if (!user) {
     return <LoginGate onLogin={onLogin} />;
@@ -54,6 +56,8 @@ export function SubmitLeadPage({ user, onLogin, onSubmit }: SubmitLeadPageProps)
       return;
     }
 
+    setLoading(true);
+    setError("");
     try {
       const res = await fetch("http://localhost:3000/api/leads", {
         method: "POST",
@@ -67,22 +71,24 @@ export function SubmitLeadPage({ user, onLogin, onSubmit }: SubmitLeadPageProps)
         })
       });
 
-      if (res.ok) {
-        onSubmit();
-        setLeadName("");
-        setLeadEmail("");
-        setRole("");
-        setOrganisationName("");
-        setSelectedDomains([]);
-        setSelectedHelps([]);
-        setConsent(false);
-      } else {
-        const errData = await res.json();
-        alert(errData.error || "Failed to submit lead to database.");
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || "Failed to submit lead.");
       }
-    } catch (err) {
+
+      onSubmit();
+      setLeadName("");
+      setLeadEmail("");
+      setRole("");
+      setOrganisationName("");
+      setSelectedDomains([]);
+      setSelectedHelps([]);
+      setConsent(false);
+    } catch (err: any) {
       console.error(err);
-      alert("Error connecting to backend server.");
+      setError(err.message || "Something went wrong. Make sure backend is running.");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -99,6 +105,12 @@ export function SubmitLeadPage({ user, onLogin, onSubmit }: SubmitLeadPageProps)
       <Card className="mx-auto w-full rounded-[28px] border border-[#1F2937] bg-[#111111] shadow-xl shadow-black/20">
         <CardContent className="p-8">
           <form onSubmit={handleSubmit} className="space-y-6">
+            {error && (
+              <div className="rounded-xl border border-red-900/50 bg-red-950/30 p-4 text-sm text-red-400">
+                {error}
+              </div>
+            )}
+
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label className="text-sm text-[#E5E7EB]">Your Name</Label>
@@ -291,9 +303,10 @@ export function SubmitLeadPage({ user, onLogin, onSubmit }: SubmitLeadPageProps)
               <div className="space-y-2">
                 <Button
                   type="submit"
+                  disabled={loading || !consent}
                   className="w-full rounded-xl bg-[#3B82F6] px-6 py-3 text-white hover:bg-[#1D4ED8]"
                 >
-                  Submit Lead →
+                  {loading ? "Submitting..." : "Submit Lead →"}
                 </Button>
                 <p className="text-center text-sm text-[#9CA3AF]">
                   No personal contact details (phone/email) are collected or stored.

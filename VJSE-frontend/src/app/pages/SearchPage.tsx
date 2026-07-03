@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";
 import { LoginGate } from "../components/LoginGate";
-import { leads as mockLeads, organisationTypes, cityOptions, domainOptions } from "../data/network";
+import { organisationTypes, cityOptions, domainOptions } from "../data/network";
 
 interface SearchPageProps {
   user: { id: number; fullName: string; email: string } | null;
@@ -103,6 +103,18 @@ export function SearchPage({ user, onLogin }: SearchPageProps) {
         <p className="text-sm uppercase tracking-[0.3em] text-[#3B82F6]/80">Browse the Network</p>
         <h1 className="text-4xl font-semibold sm:text-5xl">Browse the Network</h1>
       </div>
+
+      {error && (
+        <div className="rounded-xl border border-red-900/50 bg-red-950/30 p-4 text-sm text-red-400">
+          {error}
+        </div>
+      )}
+
+      {loading && (
+        <div className="text-center text-sm text-[#9CA3AF] py-6">
+          Loading network leads from database...
+        </div>
+      )}
 
       <Card className="rounded-[28px] border border-[#1F2937] bg-[#111111] p-6 shadow-xl shadow-black/20">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">

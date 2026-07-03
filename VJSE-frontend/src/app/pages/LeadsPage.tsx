@@ -3,7 +3,7 @@ import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";
 import { Input } from "../components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
-import { leads as mockLeads, domainOptions, cityOptions, organisationTypes } from "../data/network";
+import { domainOptions, cityOptions, organisationTypes } from "../data/network";
 
 const mentorStartups = [
   {
@@ -118,6 +118,18 @@ export function LeadsPage() {
           View startups you mentor, track progress, and message founders directly.
         </p>
       </div>
+
+      {error && (
+        <div className="rounded-xl border border-red-900/50 bg-red-950/30 p-4 text-sm text-red-400">
+          {error}
+        </div>
+      )}
+
+      {loading && (
+        <div className="text-center text-sm text-[#9CA3AF] py-6">
+          Loading mentor leads from database...
+        </div>
+      )}
 
       <div className="grid gap-4 md:grid-cols-3">
         <Card className="rounded-[24px] border border-[#1F2937] bg-[#111111] p-6 shadow-sm">

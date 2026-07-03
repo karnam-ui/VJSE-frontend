@@ -5,55 +5,102 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "../components/ui/dialog";
 import { Switch } from "../components/ui/switch";
-import { leads as initialLeads, introRequests as initialRequests, organisationTypes, cityOptions, domainOptions } from "../data/network";
+import { LoginGate } from "../components/LoginGate";
+import { organisationTypes, cityOptions, domainOptions } from "../data/network";
 
-export function AdminPage() {
-  const [leads, setLeads] = useState<any[]>([]);
-  const [introRequests, setIntroRequests] = useState(initialRequests);
+interface AdminPageProps {
+  user: { id: number; fullName: string; email: string; role: string } | null;
+  onLogin: () => void;
+}
+
+export function AdminPage({ user, onLogin }: AdminPageProps) {
+  const [dbLeads, setDbLeads] = useState<any[]>([]);
+  const [dbConnections, setDbConnections] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [filterCity, setFilterCity] = useState("");
   const [filterDomain, setFilterDomain] = useState("");
   const [filterOrg, setFilterOrg] = useState("");
   const [filterStatus, setFilterStatus] = useState("All");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
 
-  useEffect(() => {
-    fetchLeads();
-  }, []);
-
-  async function fetchLeads() {
+  async function fetchData() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch("http://localhost:3000/api/leads");
-      if (res.ok) {
-        const data = await res.json();
-        // Map backend schema to what the Admin UI expects
-        const mapped = data.map((l: any) => ({
-          id: String(l.id),
-          name: l.name,
-          role: l.skills || "Mentor",
-          organisationType: "Corporate",
-          organisation: l.organization,
-          city: "Hyderabad",
-          domains: [l.domain],
-          helps: l.skills ? l.skills.split(", ") : [],
-          referredBy: "Platform",
-          verified: l.verified,
-          submittedOn: l.createdAt ? l.createdAt.split("T")[0] : ""
-        }));
-        setLeads(mapped);
+      const [leadsRes, connectionsRes] = await Promise.all([
+        fetch("http://localhost:3000/api/leads"),
+        fetch("http://localhost:3000/api/connections")
+      ]);
+
+      if (leadsRes.ok) {
+        const leadsData = await leadsRes.json();
+        setDbLeads(leadsData);
       } else {
-        setError("Failed to retrieve leads from database API.");
+        setError("Failed to fetch leads.");
+      }
+
+      if (connectionsRes.ok) {
+        const connectionsData = await connectionsRes.json();
+        setDbConnections(connectionsData);
+      } else {
+        setError("Failed to fetch connection requests.");
       }
     } catch (err) {
       console.error(err);
-      setError("Failed to connect to the backend server.");
+      setError("Failed to connect to backend server.");
     } finally {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    if (user && user.role === "Admin") {
+      fetchData();
+    }
+  }, [user]);
+
+  if (!user) {
+    return <LoginGate onLogin={onLogin} />;
+  }
+
+  if (user.role !== "Admin") {
+    return (
+      <div className="mx-auto max-w-md text-center py-20 space-y-4">
+        <h2 className="text-2xl font-bold text-white">Access Denied</h2>
+        <p className="text-[#9CA3AF]">You must be logged in as an Admin to view this page.</p>
+      </div>
+    );
+  }
+
+  const leads = useMemo(() => {
+    return dbLeads.map((l: any) => ({
+      id: String(l.id),
+      name: l.name,
+      role: "Professional",
+      organisationType: "Corporate",
+      organisation: l.organization,
+      city: "Hyderabad",
+      domains: [l.domain],
+      helps: l.skills ? l.skills.split(",").map((s: string) => s.trim()) : [],
+      referredBy: "Student Referral",
+      verified: l.verified,
+      submittedOn: l.createdAt ? l.createdAt.split("T")[0] : new Date().toISOString().split("T")[0],
+    }));
+  }, [dbLeads]);
+
+  const introRequests = useMemo(() => {
+    return dbConnections.map((c: any) => ({
+      id: String(c.id),
+      founder: c.user?.name || "Unknown Founder",
+      email: c.user?.email || "unknown@domain.com",
+      leadName: c.lead?.name || "Unknown Lead",
+      leadRole: "Professional",
+      leadOrg: c.lead?.organization || "Unknown Org",
+      timestamp: c.createdAt ? new Date(c.createdAt).toLocaleDateString() : "Just now",
+      handled: c.status === "Accepted" || c.status === "Rejected"
+    }));
+  }, [dbConnections]);
 
   const filteredLeads = useMemo(() => {
     return leads.filter((lead) => {
@@ -102,21 +149,17 @@ export function AdminPage() {
     const lead = leads.find((l) => l.id === id);
     if (!lead) return;
 
-    const newVerified = !lead.verified;
     try {
       const res = await fetch(`http://localhost:3000/api/leads/${id}/verify`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ verified: newVerified })
+        body: JSON.stringify({ verified: !lead.verified })
       });
       if (res.ok) {
-        setLeads((current) => current.map((l) => (l.id === id ? { ...l, verified: newVerified } : l)));
-      } else {
-        alert("Failed to update verification status in database.");
+        fetchData();
       }
     } catch (err) {
-      console.error(err);
-      alert("Error connecting to backend server.");
+      console.error("Failed to toggle verification status:", err);
     }
   }
 
@@ -127,20 +170,27 @@ export function AdminPage() {
         method: "DELETE"
       });
       if (res.ok) {
-        setLeads((current) => current.filter((lead) => lead.id !== selectedLeadId));
-      } else {
-        alert("Failed to delete lead from database.");
+        setSelectedLeadId(null);
+        fetchData();
       }
     } catch (err) {
-      console.error(err);
-      alert("Error connecting to backend server.");
-    } finally {
-      setSelectedLeadId(null);
+      console.error("Failed to delete lead:", err);
     }
   }
 
-  function markHandled(id: string) {
-    setIntroRequests((current) => current.map((item) => (item.id === id ? { ...item, handled: true } : item)));
+  async function markHandled(id: string) {
+    try {
+      const res = await fetch(`http://localhost:3000/api/connections/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "Accepted" })
+      });
+      if (res.ok) {
+        fetchData();
+      }
+    } catch (err) {
+      console.error("Failed to mark request as handled:", err);
+    }
   }
 
   return (
@@ -149,6 +199,18 @@ export function AdminPage() {
         <p className="text-sm uppercase tracking-[0.3em] text-[#3B82F6]/80">Admin Control Panel</p>
         <h1 className="text-4xl font-semibold sm:text-5xl">Admin Control Panel</h1>
       </div>
+
+      {error && (
+        <div className="rounded-xl border border-red-900/50 bg-red-950/30 p-4 text-sm text-red-400">
+          {error}
+        </div>
+      )}
+
+      {loading && (
+        <div className="text-center text-sm text-[#9CA3AF] py-6">
+          Loading admin database...
+        </div>
+      )}
 
       <div className="grid gap-4 md:grid-cols-4">
         <Card className="rounded-[24px] border border-[#1F2937] bg-[#111111] p-6 shadow-sm">

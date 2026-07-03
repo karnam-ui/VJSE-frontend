@@ -84,7 +84,7 @@ export default function App() {
             <Route path="/search" element={<SearchPage user={user} onLogin={() => handleLogin("Founder")} />} />
             <Route path="/founder" element={<FounderPage user={user} onLogin={() => handleLogin("Founder")} />} />
             <Route path="/volunteer" element={<VolunteerPage user={user} onLogin={() => handleLogin("Volunteer")} />} />
-            <Route path="/admin" element={<AdminPage />} />
+            <Route path="/admin" element={<AdminPage user={user} onLogin={() => handleLogin("Admin")} />} />
             <Route path="*" element={<Navigate replace to="/network" />} />
           </Routes>
         </main>

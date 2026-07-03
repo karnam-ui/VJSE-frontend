@@ -15,6 +15,7 @@ import {
   MessageSquare
 } from "lucide-react";
 import { UserRole } from "../data/network";
+import { LoginGate } from "../components/LoginGate";
 
 interface VolunteerPageProps {
   user: { id: number; fullName: string; email: string; role: UserRole } | null;
@@ -36,6 +37,10 @@ interface Lead {
 }
 
 export function VolunteerPage({ user, onLogin }: VolunteerPageProps) {
+  if (!user) {
+    return <LoginGate onLogin={onLogin} />;
+  }
+
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"Pending" | "Approved" | "Rejected">("Pending");

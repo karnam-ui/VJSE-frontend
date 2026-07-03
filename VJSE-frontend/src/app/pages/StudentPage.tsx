@@ -19,6 +19,8 @@ export function StudentPage({ user, onLogin, onSubmit }: StudentPageProps) {
   const [organisation, setOrganisation] = useState("");
   const [city, setCity] = useState("");
   const [consent, setConsent] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   if (!user) {
     return <LoginGate onLogin={onLogin} />;
@@ -28,6 +30,8 @@ export function StudentPage({ user, onLogin, onSubmit }: StudentPageProps) {
     event.preventDefault();
     if (!consent) return;
 
+    setLoading(true);
+    setError("");
     try {
       const res = await fetch("http://localhost:3000/api/leads", {
         method: "POST",
@@ -40,21 +44,23 @@ export function StudentPage({ user, onLogin, onSubmit }: StudentPageProps) {
         })
       });
 
-      if (res.ok) {
-        onSubmit();
-        setLeadName("");
-        setLeadEmail("");
-        setRole("");
-        setOrganisation("");
-        setCity("");
-        setConsent(false);
-      } else {
-        const errData = await res.json();
-        alert(errData.error || "Failed to submit lead to database.");
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || "Failed to submit lead.");
       }
-    } catch (err) {
+
+      onSubmit();
+      setLeadName("");
+      setLeadEmail("");
+      setRole("");
+      setOrganisation("");
+      setCity("");
+      setConsent(false);
+    } catch (err: any) {
       console.error(err);
-      alert("Error connecting to backend server.");
+      setError(err.message || "Something went wrong. Make sure backend is running.");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -77,11 +83,17 @@ export function StudentPage({ user, onLogin, onSubmit }: StudentPageProps) {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
+            {error && (
+              <div className="rounded-xl border border-red-900/50 bg-red-950/30 p-4 text-sm text-red-400">
+                {error}
+              </div>
+            )}
+
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label className="text-sm text-[#E5E7EB]">Your Name</Label>
                 <div className="relative">
-                  <Input disabled value={user.fullName} className="pr-10 bg-[#111111] text-white" />
+                   <Input disabled value={user.fullName} className="pr-10 bg-[#111111] text-white" />
                   <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#9CA3AF]">
                     <Lock className="size-4" />
                   </span>
@@ -174,8 +186,12 @@ export function StudentPage({ user, onLogin, onSubmit }: StudentPageProps) {
                 </div>
               </div>
 
-              <Button type="submit" className="w-full rounded-xl bg-[#3B82F6] px-6 py-3 text-white hover:bg-[#1D4ED8]">
-                Submit Lead →
+              <Button
+                type="submit"
+                disabled={loading || !consent}
+                className="w-full rounded-xl bg-[#3B82F6] px-6 py-3 text-white hover:bg-[#1D4ED8]"
+              >
+                {loading ? "Submitting..." : "Submit Lead →"}
               </Button>
             </div>
           </form>

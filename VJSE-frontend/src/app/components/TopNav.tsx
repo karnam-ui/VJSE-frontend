@@ -26,25 +26,12 @@ export function TopNav({ user, onLogout }: TopNavProps) {
           <span className="grid h-10 w-10 place-items-center rounded-2xl bg-[#111111] text-[#3B82F6]">🚀</span>
           <div className="flex flex-col leading-tight">
             <span className="text-base font-semibold">VJ Startups</span>
-            <span className="text-xs text-[#9CA3AF]">VJ Network</span>
           </div>
         </Link>
 
-        <nav className="hidden items-center gap-6 text-sm text-[#D1D5DB] md:flex">
-          {navLinks.map((link) => (
-            <NavLink
-              key={link.label}
-              to={link.to}
-              className={({ isActive }) =>
-                isActive
-                  ? "text-white underline decoration-[#3B82F6]/50 underline-offset-4"
-                  : "transition hover:text-white"
-              }
-            >
-              {link.label}
-            </NavLink>
-          ))}
-        </nav>
+        <div className="hidden md:block text-lg font-bold tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-300">
+          VJ Startups Support Ecosystem
+        </div>
 
         <div className="flex items-center gap-3">
           {user ? (

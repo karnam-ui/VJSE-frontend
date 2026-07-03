@@ -302,19 +302,22 @@ app.get('/api/approved-leads', async (req, res) => {
 });
 
 
-// --- CONNECTION REQUEST ENDPOINTS ---
-
-// GET /api/connections - Retrieve connections for a founder
+// GET /api/connections - Retrieve connections (optionally filtered by userId)
 app.get('/api/connections', async (req, res) => {
   try {
     const { userId } = req.query;
-    if (!userId) {
-      return res.status(400).json({ error: "Missing userId query parameter" });
+    
+    const where = {};
+    if (userId) {
+      where.userId = parseInt(userId);
     }
 
     const connections = await prisma.connectionRequest.findMany({
-      where: { userId: parseInt(userId) },
-      include: { lead: true }
+      where,
+      include: { 
+        lead: true,
+        user: true // Include Founder details for Admin view
+      }
     });
 
     res.json(connections);
