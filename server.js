@@ -47,32 +47,25 @@ app.post('/api/login', async (req, res) => {
 
     const lowerEmail = email.toLowerCase();
     
-    // Resolve role based on email constraints
-    let resolvedRole = 'Student';
-    const ALLOWED_FOUNDER_EMAILS = [
-      'founder@vnrvjiet.in',
-      'founder2@vnrvjiet.in',
-      'suhaas@vnrvjiet.in',
-      'akshay@vnrvjiet.in'
-    ];
-    const ALLOWED_ADMIN_EMAILS = [
-      'admin@gmail.com',
-      'admin@vnrvjiet.in'
-    ];
+    // Hardcoded credentials for each role
+    const hardcodedLogins = {
+      'admin@gmail.com': { password: 'admin123', name: 'VJ Admin', role: 'Admin' },
+      'volunteer@vnrvjiet.in': { password: 'volunteer123', name: 'Anjali Dev', role: 'Volunteer' },
+      'founder@vnrvjiet.in': { password: 'founder123', name: 'Kabir Mehta', role: 'Founder' },
+      'lead@gmail.com': { password: 'lead123', name: 'Suresh Menon', role: 'Mentor' },
+      'student@vnrvjiet.in': { password: 'student123', name: 'Rohan Kumar', role: 'Student' }
+    };
 
-    if (ALLOWED_ADMIN_EMAILS.includes(lowerEmail)) {
-      resolvedRole = 'Admin';
-    } else if (ALLOWED_FOUNDER_EMAILS.includes(lowerEmail)) {
-      resolvedRole = 'Founder';
-    } else if (lowerEmail.endsWith('@vnrvjiet.in')) {
-      if (lowerEmail.startsWith('volunteer')) {
-        resolvedRole = 'Volunteer';
-      } else {
-        resolvedRole = 'Student';
-      }
-    } else {
-      resolvedRole = 'Mentor';
+    const match = hardcodedLogins[lowerEmail];
+    if (!match) {
+      return res.status(401).json({ error: "Access restricted. Email not recognized." });
     }
+
+    if (match.password !== password) {
+      return res.status(401).json({ error: "Invalid email or password" });
+    }
+
+    const resolvedRole = match.role;
 
     // Check if user exists in DB
     let user = await prisma.user.findUnique({
@@ -81,29 +74,26 @@ app.post('/api/login', async (req, res) => {
 
     if (!user) {
       // If user doesn't exist, auto-register them
-      const derivedName = lowerEmail.split('@')[0].split(/[._-]/).map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
       user = await prisma.user.create({
         data: {
           email: lowerEmail,
           password: password,
-          name: derivedName,
+          name: match.name,
           role: resolvedRole
         }
       });
-      console.log(`Auto-registered new user on login: ${user.name} (${resolvedRole})`);
+      console.log(`Auto-registered hardcoded user: ${user.name} (${resolvedRole})`);
     } else {
-      // Verify password
-      if (user.password !== password) {
-        return res.status(401).json({ error: "Invalid email or password" });
-      }
-
-      // Enforce email domain role mapping constraint (sync DB if mismatched)
-      if (user.role !== resolvedRole) {
+      // Sync password/role in DB if changed
+      if (user.password !== password || user.role !== resolvedRole) {
         user = await prisma.user.update({
           where: { id: user.id },
-          data: { role: resolvedRole }
+          data: {
+            password: password,
+            role: resolvedRole
+          }
         });
-        console.log(`Updated user ${user.email} role to ${resolvedRole} to match email constraints`);
+        console.log(`Synced hardcoded user ${user.email} credentials/role in DB`);
       }
     }
 
