@@ -1,7 +1,10 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const Database = require('better-sqlite3');
 const path = require('path');
+const session = require('express-session');
+const passport = require('passport');
 
 // 1. Intercept the 'better-sqlite3' connection to auto-inject the decryption key
 class EncryptedDatabase extends Database {
@@ -27,13 +30,67 @@ const PORT = process.env.PORT || 3000;
 const adapter = new PrismaBetterSqlite3({ url: 'file:./dev.db' });
 const prisma = new PrismaClient({ adapter });
 
+// Load Passport Configuration
+require('./passport')(prisma);
+
 app.use(cors());
 app.use(express.json());
+
+// Configure Sessions and Passport Middlewares
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'a-fallback-session-secret',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { secure: false } // Set to true if running over HTTPS
+}));
+
+app.use(passport.initialize());
+app.use(passport.session());
 
 // Log incoming requests
 app.use((req, res, next) => {
   console.log(`${req.method} ${req.path}`);
   next();
+});
+
+// --- GOOGLE OAUTH ROUTES ---
+
+// GET /auth/google - Trigger Google Authentication
+app.get('/auth/google', passport.authenticate('google', {
+  scope: ['profile', 'email']
+}));
+
+// GET /auth/google/callback - Google Redirect Destination
+app.get('/auth/google/callback',
+  passport.authenticate('google', { failureRedirect: '/login' }),
+  (req, res) => {
+    // Redirect to the frontend application dashboard upon successful login
+    res.redirect('http://localhost:5173/');
+  }
+);
+
+// GET /api/current-user - Retrieve session user info
+app.get('/api/current-user', (req, res) => {
+  if (req.isAuthenticated()) {
+    res.json({
+      user: {
+        id: req.user.id,
+        name: req.user.name,
+        email: req.user.email,
+        role: req.user.role
+      }
+    });
+  } else {
+    res.status(401).json({ error: "Not authenticated" });
+  }
+});
+
+// POST /api/logout - Log out and destroy session
+app.post('/api/logout', (req, res, next) => {
+  req.logout((err) => {
+    if (err) { return next(err); }
+    res.json({ message: "Successfully logged out" });
+  });
 });
 
 // POST /api/login - Log in a user and verify credentials + domain constraints
