@@ -33,7 +33,10 @@ const prisma = new PrismaClient({ adapter });
 // Load Passport Configuration
 require('./passport')(prisma);
 
-app.use(cors());
+app.use(cors({
+  origin: ['http://localhost:5173', 'http://127.0.0.1:5173'],
+  credentials: true
+}));
 app.use(express.json());
 
 // Configure Sessions and Passport Middlewares
@@ -51,6 +54,139 @@ app.use(passport.session());
 app.use((req, res, next) => {
   console.log(`${req.method} ${req.path}`);
   next();
+});
+
+// Utility to decode Google ID token (JWT) without libraries
+function decodeJWT(token) {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const payload = parts[1];
+    const decoded = Buffer.from(payload, 'base64').toString('utf8');
+    return JSON.parse(decoded);
+  } catch (e) {
+    return null;
+  }
+}
+
+// --- LOCAL MOCK AUTHENTICATION APIS ---
+
+// GET /api/config - Return Google Client ID dynamically
+app.get('/api/config', (req, res) => {
+  res.json({
+    googleClientId: process.env.GOOGLE_CLIENT_ID || 'dummy-client-id'
+  });
+});
+
+// POST /auth/google - Authenticate Google ID token locally
+app.post('/auth/google', async (req, res) => {
+  try {
+    const token = req.body.token || req.body.idToken || req.body.credential;
+    if (!token) {
+      return res.status(400).json({ error: "Missing Google ID token" });
+    }
+
+    const profile = decodeJWT(token);
+    if (!profile || !profile.email) {
+      return res.status(400).json({ error: "Invalid Google ID token format" });
+    }
+
+    const email = profile.email;
+    const lowerEmail = email.toLowerCase();
+    
+    console.log("Decoded Google profile:", profile);
+
+    if (!profile.sub) {
+      return res.status(400).json({ error: "Invalid Google ID token: Missing subject (sub) identifier" });
+    }
+
+    // 1. Check if user already has their googleId linked
+    let user = await prisma.user.findUnique({
+      where: { googleId: profile.sub },
+    });
+
+    if (!user) {
+      // 2. Otherwise, check if user exists by email but isn't linked to Google yet
+      user = await prisma.user.findUnique({
+        where: { email: lowerEmail },
+      });
+
+      if (user) {
+        // Link the googleId to the existing account
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: { googleId: profile.sub },
+        });
+        console.log(`🔗 Linked Google authentication to existing user: ${user.email}`);
+      } else {
+        // 3. Auto-resolve role
+        let resolvedRole = 'Mentor';
+        if (lowerEmail === 'admin@gmail.com' || lowerEmail === 'admin@vnrvjiet.in') {
+          resolvedRole = 'Admin';
+        } else if (
+          lowerEmail === 'founder@vnrvjiet.in' ||
+          lowerEmail === 'suhaas@vnrvjiet.in' ||
+          lowerEmail === 'akshay@vnrvjiet.in'
+        ) {
+          resolvedRole = 'Founder';
+        } else if (lowerEmail.endsWith('@vnrvjiet.in')) {
+          const prefix = lowerEmail.split('@')[0];
+          if (prefix.startsWith('volunteer')) {
+            resolvedRole = 'Volunteer';
+          } else {
+            resolvedRole = 'Student';
+          }
+        }
+
+        // 4. Create the new user record
+        user = await prisma.user.create({
+          data: {
+            email: lowerEmail,
+            name: profile.name || 'VJ User',
+            role: resolvedRole,
+            googleId: profile.sub,
+          },
+        });
+        console.log(`🆕 Auto-registered new Google user: ${user.name} (${user.role})`);
+      }
+    }
+
+    // Save user details to the session
+    req.session.user = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role
+    };
+
+    res.json({ user: req.session.user });
+  } catch (error) {
+    console.error("Error in mock /auth/google:", error);
+    if (error.stack) {
+      console.error(error.stack);
+    }
+    res.status(500).json({ error: "Failed to authenticate Google user: " + error.message });
+  }
+});
+
+// GET /check-auth - Verify existing session
+app.get('/check-auth', (req, res) => {
+  if (req.session && req.session.user) {
+    return res.json({ user: req.session.user });
+  }
+  res.status(401).json({ error: "Not authenticated" });
+});
+
+// POST /logout - Destroy local session
+app.post('/logout', (req, res) => {
+  req.session.user = null;
+  req.session.destroy((err) => {
+    if (err) {
+      return res.status(500).json({ error: "Failed to log out" });
+    }
+    res.clearCookie('connect.sid');
+    res.json({ message: "Successfully logged out" });
+  });
 });
 
 // --- GOOGLE OAUTH ROUTES ---

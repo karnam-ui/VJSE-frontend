@@ -12,6 +12,7 @@ import { LeadsPage } from "./pages/LeadsPage";
 import { FounderPage } from "./pages/FounderPage";
 import { Toast } from "./components/Toast";
 import { UserRole } from "./data/network";
+import { api } from "./data/api";
 
 type AppUser = {
   id: number;
@@ -37,7 +38,37 @@ export default function App() {
     return () => window.clearTimeout(timer);
   }, [toastMessage]);
 
-  function handleLogin(loginData: UserRole | { id: number; name: string; email: string; role: UserRole }) {
+  // Restore authenticated session on mount
+  useEffect(() => {
+    async function checkAuthSession() {
+      try {
+        const response = await api.get("/check-auth");
+        const userPayload = response.data.user || response.data;
+        if (userPayload && userPayload.email) {
+          setUser({
+            id: userPayload.id || 1,
+            fullName: userPayload.fullName || userPayload.name || "VJ User",
+            email: userPayload.email,
+            role: userPayload.role || "Student",
+          });
+        }
+      } catch (err) {
+        console.log("No active session found:", err);
+        // Clear invalid token
+        localStorage.removeItem("token");
+        setUser(null);
+      }
+    }
+    checkAuthSession();
+  }, []);
+
+  function handleLogin(
+    loginData: UserRole | { id: number; name: string; email: string; role: UserRole },
+    token?: string
+  ) {
+    if (token) {
+      localStorage.setItem("token", token);
+    }
     if (typeof loginData === "string") {
       setUser({
         id: loginData === "Student" ? 1 : loginData === "Founder" ? 3 : 2,
@@ -55,8 +86,15 @@ export default function App() {
     }
   }
 
-  function handleLogout() {
-    setUser(null);
+  async function handleLogout() {
+    try {
+      await api.post("/logout");
+    } catch (err) {
+      console.error("Logout request failed:", err);
+    } finally {
+      localStorage.removeItem("token");
+      setUser(null);
+    }
   }
 
   function handleSubmitSuccess() {
