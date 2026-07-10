@@ -14,6 +14,15 @@ declare global {
   }
 }
 
+interface ImportMetaEnv {
+  readonly VITE_GOOGLE_CLIENT_ID?: string;
+  [key: string]: string | undefined;
+}
+
+interface ImportMeta {
+  readonly env: ImportMetaEnv;
+}
+
 interface LoginPageProps {
   onLogin: (user: { id: number; name: string; email: string; role: UserRole }, token?: string) => void;
 }
@@ -22,7 +31,6 @@ function getRedirectPath(role: UserRole) {
   switch (role) {
     case "Student":
       return "/student";
-    case "Leads":
     case "Mentor":
       return "/leads";
     case "Founder":
@@ -71,7 +79,8 @@ export function LoginPage({ onLogin }: LoginPageProps) {
         }
 
         if (!clientId || clientId === "your-google-client-id" || clientId === "dummy-client-id") {
-          console.warn("No valid Google Client ID found. Please define VITE_GOOGLE_CLIENT_ID in your env or server config");
+          console.warn("No valid Google Client ID found. Google sign-in will stay disabled until a real client ID is configured.");
+          return;
         }
 
         if (!active) return;

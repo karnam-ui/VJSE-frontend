@@ -1,3 +1,4 @@
+require('dotenv').config();
 const Database = require('better-sqlite3'); // This is the aliased SQLCipher-enabled driver
 const path = require('path');
 
@@ -6,7 +7,8 @@ class EncryptedDatabase extends Database {
   constructor(filename, options) {
     super(filename, options);
     console.log(`🔐 [Interception] Injecting SQLCipher key for database: ${filename}`);
-    this.pragma("key='my-super-secret-password'");
+    const key = process.env.SQLCIPHER_KEY || 'my-super-secret-password';
+    this.pragma(`key='${key}'`);
   }
 }
 

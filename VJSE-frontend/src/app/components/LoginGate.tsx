@@ -1,11 +1,13 @@
+import { useNavigate } from "react-router-dom";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
 
 interface LoginGateProps {
-  onLogin: () => void;
+  onLogin?: () => void;
 }
 
 export function LoginGate({ onLogin }: LoginGateProps) {
+  const navigate = useNavigate();
   return (
     <Card className="mx-auto max-w-xl rounded-[18px] border border-[#1F2937] bg-gradient-to-br from-[#111111] via-[#121212] to-[#111111] p-px shadow-xl">
       <CardContent className="rounded-[18px] bg-[#111111] px-8 py-10 text-center text-white">
@@ -19,7 +21,7 @@ export function LoginGate({ onLogin }: LoginGateProps) {
         <Button
           variant="default"
           size="lg"
-          onClick={onLogin}
+          onClick={() => navigate("/login")}
           className="mx-auto mt-8 w-full max-w-[240px] bg-[#F59E0B] text-[#0F172A] hover:bg-[#D97706]"
         >
           Login to Continue

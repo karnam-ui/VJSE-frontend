@@ -33,8 +33,24 @@ const prisma = new PrismaClient({ adapter });
 // Load Passport Configuration
 require('./passport')(prisma);
 
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+const allowedOrigins = [
+  FRONTEND_URL,
+  FRONTEND_URL.replace('localhost', '127.0.0.1'),
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://localhost:5174',
+  'http://127.0.0.1:5174',
+  'http://localhost:5175',
+  'http://127.0.0.1:5175',
+];
+
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://127.0.0.1:5173'],
+  origin: function(origin, callback) {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(null, false);
+  },
   credentials: true
 }));
 app.use(express.json());
@@ -74,8 +90,14 @@ function decodeJWT(token) {
 // GET /api/config - Return Google Client ID dynamically
 app.get('/api/config', (req, res) => {
   res.json({
-    googleClientId: process.env.GOOGLE_CLIENT_ID || 'dummy-client-id'
+    googleClientId: process.env.GOOGLE_CLIENT_ID || 'dummy-client-id',
+    frontendUrl: FRONTEND_URL,
   });
+});
+
+// GET /health - Simple health check for debugging
+app.get('/health', (req, res) => {
+  res.json({ ok: true, message: 'server is up' });
 });
 
 // POST /auth/google - Authenticate Google ID token locally
@@ -240,54 +262,44 @@ app.post('/api/login', async (req, res) => {
 
     const lowerEmail = email.toLowerCase();
     
-    // Hardcoded credentials for each role
-    const hardcodedLogins = {
-      'admin@gmail.com': { password: 'admin123', name: 'VJ Admin', role: 'Admin' },
-      'volunteer@vnrvjiet.in': { password: 'volunteer123', name: 'Anjali Dev', role: 'Volunteer' },
-      'founder@vnrvjiet.in': { password: 'founder123', name: 'Kabir Mehta', role: 'Founder' },
-      'lead@gmail.com': { password: 'lead123', name: 'Suresh Menon', role: 'Mentor' },
-      'student@vnrvjiet.in': { password: 'student123', name: 'Rohan Kumar', role: 'Student' }
-    };
-
-    const match = hardcodedLogins[lowerEmail];
-    if (!match) {
-      return res.status(401).json({ error: "Access restricted. Email not recognized." });
-    }
-
-    if (match.password !== password) {
-      return res.status(401).json({ error: "Invalid email or password" });
-    }
-
-    const resolvedRole = match.role;
-
     // Check if user exists in DB
     let user = await prisma.user.findUnique({
       where: { email: lowerEmail }
     });
 
-    if (!user) {
-      // If user doesn't exist, auto-register them
+    if (user) {
+      if (user.password !== password) {
+        return res.status(401).json({ error: "Invalid email or password" });
+      }
+    } else {
+      // Hardcoded credentials for each role to auto-register
+      const hardcodedLogins = {
+        'admin@gmail.com': { password: 'admin123', name: 'VJ Admin', role: 'Admin' },
+        'volunteer@vnrvjiet.in': { password: 'volunteer123', name: 'Anjali Dev', role: 'Volunteer' },
+        'founder@vnrvjiet.in': { password: 'founder123', name: 'Kabir Mehta', role: 'Founder' },
+        'lead@gmail.com': { password: 'lead123', name: 'Suresh Menon', role: 'Mentor' },
+        'student@vnrvjiet.in': { password: 'student123', name: 'Rohan Kumar', role: 'Student' }
+      };
+
+      const match = hardcodedLogins[lowerEmail];
+      if (!match) {
+        return res.status(401).json({ error: "Access restricted. Email not recognized." });
+      }
+
+      if (match.password !== password) {
+        return res.status(401).json({ error: "Invalid email or password" });
+      }
+
+      // Auto-register hardcoded user
       user = await prisma.user.create({
         data: {
           email: lowerEmail,
           password: password,
           name: match.name,
-          role: resolvedRole
+          role: match.role
         }
       });
-      console.log(`Auto-registered hardcoded user: ${user.name} (${resolvedRole})`);
-    } else {
-      // Sync password/role in DB if changed
-      if (user.password !== password || user.role !== resolvedRole) {
-        user = await prisma.user.update({
-          where: { id: user.id },
-          data: {
-            password: password,
-            role: resolvedRole
-          }
-        });
-        console.log(`Synced hardcoded user ${user.email} credentials/role in DB`);
-      }
+      console.log(`Auto-registered hardcoded user: ${user.name} (${match.role})`);
     }
 
     console.log(`User logged in: ${user.name} (${user.role})`);
