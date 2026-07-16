@@ -59,7 +59,7 @@ export function SubmitLeadPage({ user, onLogin, onSubmit }: SubmitLeadPageProps)
     setLoading(true);
     setError("");
     try {
-      const res = await fetch("http://localhost:3000/api/leads", {
+      const res = await fetch("/api/leads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

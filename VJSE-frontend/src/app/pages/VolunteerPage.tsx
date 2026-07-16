@@ -58,7 +58,7 @@ export function VolunteerPage({ user, onLogin }: VolunteerPageProps) {
     setLoading(true);
     setActionError("");
     try {
-      const res = await fetch("http://localhost:3000/api/leads");
+      const res = await fetch("/api/leads");
       if (res.ok) {
         const data = await res.json();
         setLeads(data);
@@ -75,7 +75,7 @@ export function VolunteerPage({ user, onLogin }: VolunteerPageProps) {
 
   async function handleApprove(leadId: number) {
     try {
-      const res = await fetch(`http://localhost:3000/api/leads/${leadId}/approve`, {
+      const res = await fetch(`/api/leads/${leadId}/approve`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" }
       });
@@ -96,7 +96,7 @@ export function VolunteerPage({ user, onLogin }: VolunteerPageProps) {
     if (!rejectingLeadId || !rejectionReason.trim()) return;
 
     try {
-      const res = await fetch(`http://localhost:3000/api/leads/${rejectingLeadId}/reject`, {
+      const res = await fetch(`/api/leads/${rejectingLeadId}/reject`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ reason: rejectionReason })
@@ -116,7 +116,7 @@ export function VolunteerPage({ user, onLogin }: VolunteerPageProps) {
 
   async function handleInvite(leadId: number) {
     try {
-      const res = await fetch(`http://localhost:3000/api/leads/${leadId}/invite`, {
+      const res = await fetch(`/api/leads/${leadId}/invite`, {
         method: "POST"
       });
       if (res.ok) {

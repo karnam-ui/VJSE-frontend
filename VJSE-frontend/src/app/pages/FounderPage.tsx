@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+import ChatComponent from "../components/Chat";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Input } from "../components/ui/input";
@@ -119,7 +120,7 @@ export function FounderPage({ user, onLogin }: FounderPageProps) {
   async function fetchStartupProfile(userId: number) {
     try {
       setLoadingProfile(true);
-      const res = await fetch(`http://localhost:3000/api/startup?userId=${userId}`);
+      const res = await fetch(`/api/startup?userId=${userId}`);
       if (res.ok) {
         const data = await res.json();
         setStartup(data);
@@ -147,7 +148,7 @@ export function FounderPage({ user, onLogin }: FounderPageProps) {
     setSavingProfile(true);
     setProfileMsg("");
     try {
-      const res = await fetch("http://localhost:3000/api/startup", {
+      const res = await fetch("/api/startup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -184,7 +185,7 @@ export function FounderPage({ user, onLogin }: FounderPageProps) {
       if (filterOrg) queryParams.append("organization", filterOrg);
       if (filterSkills) queryParams.append("skills", filterSkills);
 
-      const res = await fetch(`http://localhost:3000/api/approved-leads?${queryParams.toString()}`);
+      const res = await fetch(`/api/approved-leads?${queryParams.toString()}`);
       if (res.ok) {
         const data = await res.json();
         setLeads(data);
@@ -199,7 +200,7 @@ export function FounderPage({ user, onLogin }: FounderPageProps) {
   async function fetchConnections(userId: number) {
     setLoadingConnections(true);
     try {
-      const res = await fetch(`http://localhost:3000/api/connections?userId=${userId}`);
+      const res = await fetch(`/api/connections?userId=${userId}`);
       if (res.ok) {
         const data = await res.json();
         setConnections(data);
@@ -214,7 +215,7 @@ export function FounderPage({ user, onLogin }: FounderPageProps) {
   async function handleSendRequest(leadId: number) {
     if (!user) return;
     try {
-      const res = await fetch("http://localhost:3000/api/connections", {
+      const res = await fetch("/api/connections", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -235,7 +236,7 @@ export function FounderPage({ user, onLogin }: FounderPageProps) {
   async function handleMockAcceptRequest(connectionId: number) {
     if (!user) return;
     try {
-      const res = await fetch(`http://localhost:3000/api/connections/${connectionId}`, {
+      const res = await fetch(`/api/connections/${connectionId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -253,7 +254,7 @@ export function FounderPage({ user, onLogin }: FounderPageProps) {
 
   async function fetchChats(userId: number, leadId: number) {
     try {
-      const res = await fetch(`http://localhost:3000/api/chats?userId=${userId}&leadId=${leadId}`);
+      const res = await fetch(`/api/chats?userId=${userId}&leadId=${leadId}`);
       if (res.ok) {
         const data = await res.json();
         setMessages(data);
@@ -272,7 +273,7 @@ export function FounderPage({ user, onLogin }: FounderPageProps) {
     setSendingMessage(true);
 
     try {
-      const res = await fetch("http://localhost:3000/api/chats", {
+      const res = await fetch("/api/chats", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -667,122 +668,12 @@ export function FounderPage({ user, onLogin }: FounderPageProps) {
 
       {/* TAB 3: Connections & Real-time Chats */}
       {activeTab === "chats" && (
-        <Card className="rounded-[28px] border border-[#1F2937] bg-[#111111] p-0 overflow-hidden shadow-2xl">
-          <div className="grid md:grid-cols-12 min-h-[500px]">
-            {/* Connections Pane */}
-            <div className="md:col-span-4 border-r border-[#1F2937] p-5 space-y-4">
-              <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                <Users className="h-5 w-5 text-[#3B82F6]" />
-                Your Connections
-              </h3>
-              
-              <div className="space-y-2 overflow-y-auto max-h-[420px]">
-                {loadingConnections ? (
-                  <div className="py-6 text-center text-xs text-[#9CA3AF]">Loading connections...</div>
-                ) : connections.filter(c => c.status === "Accepted").length === 0 ? (
-                  <div className="py-8 text-center text-xs text-[#9CA3AF] border border-dashed border-[#1F2937] rounded-xl p-4">
-                    <p className="font-semibold text-white">No active connections</p>
-                    <p className="mt-1">Go to "Browse Approved Leads" to send a connection request. Once accepted (or mock-accepted), you can chat here.</p>
-                  </div>
-                ) : (
-                  connections.filter(c => c.status === "Accepted").map((conn) => (
-                    <div
-                      key={conn.id}
-                      onClick={() => {
-                        setActiveLeadId(conn.leadId);
-                        fetchChats(user.id, conn.leadId);
-                      }}
-                      className={`group flex items-center justify-between cursor-pointer rounded-xl p-3 border transition ${
-                        activeLeadId === conn.leadId
-                          ? "bg-[#3B82F6]/10 border-[#3B82F6]"
-                          : "border-[#1F2937] bg-[#0A0A0A]/50 hover:bg-[#0A0A0A] hover:border-gray-800"
-                      }`}
-                    >
-                      <div>
-                        <h4 className="text-sm font-semibold text-white group-hover:text-[#3B82F6] transition">{conn.lead.name}</h4>
-                        <p className="text-[11px] text-[#9CA3AF] mt-0.5">{conn.lead.organization}</p>
-                      </div>
-                      <ArrowRight className="h-3.5 w-3.5 text-gray-600 group-hover:text-[#3B82F6] group-hover:translate-x-1 transition" />
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            {/* Chat Pane */}
-            <div className="md:col-span-8 flex flex-col justify-between bg-[#0A0A0A]/35">
-              {activeLeadId && activeConnectionLead ? (
-                <>
-                  {/* Chat Header */}
-                  <div className="border-b border-[#1F2937] p-4 flex items-center justify-between bg-[#111111]/80">
-                    <div>
-                      <h4 className="font-bold text-white">{activeConnectionLead.name}</h4>
-                      <p className="text-[11px] text-[#9CA3AF]">{activeConnectionLead.role} • {activeConnectionLead.organization}</p>
-                    </div>
-                    <span className="text-[10px] uppercase font-bold text-[#3B82F6] bg-[#3B82F6]/10 px-2 py-0.5 rounded-full">
-                      {activeConnectionLead.domain}
-                    </span>
-                  </div>
-
-                  {/* Message History */}
-                  <div className="flex-1 p-5 overflow-y-auto max-h-[380px] min-h-[300px] space-y-4">
-                    {messages.length === 0 ? (
-                      <div className="h-full flex flex-col items-center justify-center text-[#9CA3AF] py-12">
-                        <MessageSquare className="h-10 w-10 text-gray-700 mb-2" />
-                        <p className="text-sm font-semibold text-white">No messages yet</p>
-                        <p className="text-xs mt-1">Send a message to introduce yourself and your startup!</p>
-                      </div>
-                    ) : (
-                      messages.map((msg) => {
-                        const isFounder = msg.sender === "Founder";
-                        return (
-                          <div
-                            key={msg.id}
-                            className={`flex ${isFounder ? "justify-end" : "justify-start"}`}
-                          >
-                            <div className={`max-w-[70%] rounded-2xl px-4 py-2.5 text-sm shadow-sm ${
-                              isFounder 
-                                ? "bg-[#3B82F6] text-white rounded-br-none" 
-                                : "bg-[#111111] text-white border border-[#1F2937] rounded-bl-none"
-                            }`}>
-                              <p className="leading-relaxed">{msg.content}</p>
-                              <span className={`block text-[9px] mt-1.5 text-right ${isFounder ? "text-[#E0F2FE]/70" : "text-[#9CA3AF]"}`}>
-                                {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-
-                  {/* Send Input Area */}
-                  <form onSubmit={handleSendMessage} className="border-t border-[#1F2937] p-4 bg-[#111111]/80 flex gap-2">
-                    <Input
-                      placeholder={`Type a message to ${activeConnectionLead.name}...`}
-                      value={chatInput}
-                      onChange={(e) => setChatInput(e.target.value)}
-                      className="flex-1 bg-[#0A0A0A] border-[#1F2937] focus:border-[#3B82F6] text-white rounded-xl h-11"
-                    />
-                    <Button
-                      type="submit"
-                      disabled={sendingMessage || !chatInput.trim()}
-                      className="bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-xl px-4 h-11"
-                    >
-                      <Send className="h-4 w-4" />
-                    </Button>
-                  </form>
-                </>
-              ) : (
-                <div className="flex-1 flex flex-col items-center justify-center p-8 text-[#9CA3AF]">
-                  <MessageSquare className="h-12 w-12 text-gray-700 mb-2 animate-pulse" />
-                  <p className="text-lg font-semibold text-white">Select a connection to start chatting</p>
-                  <p className="text-sm mt-1 max-w-sm text-center">Your conversations are stored securely using SQLCipher db-level encryption.</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </Card>
+        <div className="h-[600px] border border-[#1F2937] rounded-[28px] overflow-hidden bg-[#111111] shadow-2xl">
+          <ChatComponent 
+            currentUser={{ id: "founder-123", name: "Rahul Verma" }}
+            targetUser={{ id: "sourcer-456", name: "Ananya Sharma" }}
+          />
+        </div>
       )}
     </div>
   );

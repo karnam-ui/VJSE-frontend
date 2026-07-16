@@ -33,13 +33,13 @@ export function AdminPage({ user, onLogin }: AdminPageProps) {
     setError("");
     try {
       // 1. Fetch leads
-      const leadsRes = await fetch("http://localhost:3000/api/leads");
+      const leadsRes = await fetch("/api/leads");
       if (!leadsRes.ok) throw new Error("Failed to fetch leads");
       const leadsData = await leadsRes.json();
       setLeads(leadsData);
 
       // 2. Fetch connection requests
-      const connRes = await fetch("http://localhost:3000/api/connections");
+      const connRes = await fetch("/api/connections");
       if (!connRes.ok) throw new Error("Failed to fetch connection requests");
       const connData = await connRes.json();
       
@@ -109,7 +109,7 @@ export function AdminPage({ user, onLogin }: AdminPageProps) {
 
   async function handleVerifyToggle(leadId: number, currentVerified: boolean) {
     try {
-      const res = await fetch(`http://localhost:3000/api/leads/${leadId}/verify`, {
+      const res = await fetch(`/api/leads/${leadId}/verify`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -130,7 +130,7 @@ export function AdminPage({ user, onLogin }: AdminPageProps) {
   async function confirmDelete() {
     if (!selectedLeadId) return;
     try {
-      const res = await fetch(`http://localhost:3000/api/leads/${selectedLeadId}`, {
+      const res = await fetch(`/api/leads/${selectedLeadId}`, {
         method: "DELETE"
       });
       if (res.ok) {
@@ -148,7 +148,7 @@ export function AdminPage({ user, onLogin }: AdminPageProps) {
 
   async function markHandled(connectionId: number) {
     try {
-      const res = await fetch(`http://localhost:3000/api/connections/${connectionId}`, {
+      const res = await fetch(`/api/connections/${connectionId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

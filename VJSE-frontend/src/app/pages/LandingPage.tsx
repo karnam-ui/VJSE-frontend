@@ -12,13 +12,13 @@ export function LandingPage() {
   useEffect(() => {
     async function fetchData() {
       try {
-        const statsRes = await fetch("http://localhost:3000/api/stats");
+        const statsRes = await fetch("/api/stats");
         if (statsRes.ok) {
           const statsData = await statsRes.json();
           setStats(statsData);
         }
         
-        const startupsRes = await fetch("http://localhost:3000/api/startups");
+        const startupsRes = await fetch("/api/startups");
         if (startupsRes.ok) {
           const startupsData = await startupsRes.json();
           setStartups(startupsData);

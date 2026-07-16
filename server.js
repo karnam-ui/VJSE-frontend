@@ -1,34 +1,18 @@
 require('dotenv').config();
 const express = require('express');
+const { StreamChat } = require('stream-chat');
+const bcrypt = require('bcrypt');
 const cors = require('cors');
-const Database = require('better-sqlite3');
 const path = require('path');
 const session = require('express-session');
 const passport = require('passport');
-
-// 1. Intercept the 'better-sqlite3' connection to auto-inject the decryption key
-class EncryptedDatabase extends Database {
-  constructor(filename, options) {
-    super(filename, options);
-    const key = process.env.SQLCIPHER_KEY || 'my-super-secret-password';
-    console.log(`🔐 [Express SQLCipher] Authenticating database: ${filename}`);
-    this.pragma(`key='${key}'`);
-  }
-}
-
-const betterSqlite3Path = require.resolve('better-sqlite3');
-require.cache[betterSqlite3Path].exports = EncryptedDatabase;
-
-// 2. Import Prisma
-const { PrismaBetterSqlite3 } = require('@prisma/adapter-better-sqlite3');
-const { PrismaClient } = require('./generated/prisma');
 
 // 3. Initialize Express and Prisma
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-const adapter = new PrismaBetterSqlite3({ url: 'file:./dev.db' });
-const prisma = new PrismaClient({ adapter });
+console.log("📂 Using in-memory Mock Prisma client to bypass better-sqlite3 restriction.");
+const prisma = require('./mock-prisma');
 
 // Load Passport Configuration
 require('./passport')(prisma);
@@ -93,6 +77,25 @@ app.get('/api/config', (req, res) => {
     googleClientId: process.env.GOOGLE_CLIENT_ID || 'dummy-client-id',
     frontendUrl: FRONTEND_URL,
   });
+});
+
+app.post('/api/chat/token', async (req, res) => {
+  try {
+    const { userId, userName } = req.body;
+    if (!userId || !userName) {
+      return res.status(400).json({ error: 'userId and userName are required' });
+    }
+    const serverClient = StreamChat.getInstance(
+      process.env.STREAM_API_KEY,
+      process.env.STREAM_API_SECRET
+    );
+    await serverClient.upsertUser({ id: userId, name: userName, role: 'user' });
+    const token = serverClient.createToken(userId);
+    res.json({ token });
+  } catch (err) {
+    console.error('Stream token error:', err);
+    res.status(500).json({ error: 'Failed to generate token' });
+  }
 });
 
 // GET /health - Simple health check for debugging
@@ -251,7 +254,7 @@ app.post('/api/logout', (req, res, next) => {
   });
 });
 
-// POST /api/login - Log in a user and verify credentials + domain constraints
+// POST /api/login - Log in a user and verify credentials
 app.post('/api/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -261,45 +264,19 @@ app.post('/api/login', async (req, res) => {
     }
 
     const lowerEmail = email.toLowerCase();
-    
+
     // Check if user exists in DB
-    let user = await prisma.user.findUnique({
+    const user = await prisma.user.findUnique({
       where: { email: lowerEmail }
     });
 
-    if (user) {
-      if (user.password !== password) {
-        return res.status(401).json({ error: "Invalid email or password" });
-      }
-    } else {
-      // Hardcoded credentials for each role to auto-register
-      const hardcodedLogins = {
-        'admin@gmail.com': { password: 'admin123', name: 'VJ Admin', role: 'Admin' },
-        'volunteer@vnrvjiet.in': { password: 'volunteer123', name: 'Anjali Dev', role: 'Volunteer' },
-        'founder@vnrvjiet.in': { password: 'founder123', name: 'Kabir Mehta', role: 'Founder' },
-        'lead@gmail.com': { password: 'lead123', name: 'Suresh Menon', role: 'Mentor' },
-        'student@vnrvjiet.in': { password: 'student123', name: 'Rohan Kumar', role: 'Student' }
-      };
+    if (!user) {
+      return res.status(401).json({ error: "Invalid email or password" });
+    }
 
-      const match = hardcodedLogins[lowerEmail];
-      if (!match) {
-        return res.status(401).json({ error: "Access restricted. Email not recognized." });
-      }
-
-      if (match.password !== password) {
-        return res.status(401).json({ error: "Invalid email or password" });
-      }
-
-      // Auto-register hardcoded user
-      user = await prisma.user.create({
-        data: {
-          email: lowerEmail,
-          password: password,
-          name: match.name,
-          role: match.role
-        }
-      });
-      console.log(`Auto-registered hardcoded user: ${user.name} (${match.role})`);
+    const passwordMatch = await bcrypt.compare(password, user.password);
+    if (!passwordMatch) {
+      return res.status(401).json({ error: "Invalid email or password" });
     }
 
     console.log(`User logged in: ${user.name} (${user.role})`);

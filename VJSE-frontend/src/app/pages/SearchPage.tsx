@@ -27,7 +27,7 @@ export function SearchPage({ user, onLogin }: SearchPageProps) {
     setError("");
     try {
       // Fetch approved leads
-      const leadsRes = await fetch("http://localhost:3000/api/approved-leads");
+      const leadsRes = await fetch("/api/approved-leads");
       if (!leadsRes.ok) throw new Error("Failed to fetch approved leads");
       const rawLeads = await leadsRes.json();
       const mappedLeads = rawLeads.map((l: any) => ({
@@ -42,7 +42,7 @@ export function SearchPage({ user, onLogin }: SearchPageProps) {
       setLeads(mappedLeads);
 
       // Fetch connection requests for current founder
-      const connRes = await fetch(`http://localhost:3000/api/connections?userId=${user.id}`);
+      const connRes = await fetch(`/api/connections?userId=${user.id}`);
       if (connRes.ok) {
         const connData = await connRes.json();
         const requestedIds = connData.map((c: any) => c.leadId);
@@ -59,7 +59,7 @@ export function SearchPage({ user, onLogin }: SearchPageProps) {
   async function handleRequestIntroduction(leadId: number) {
     if (!user) return;
     try {
-      const res = await fetch("http://localhost:3000/api/connections", {
+      const res = await fetch("/api/connections", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
