@@ -88,6 +88,18 @@ function decodeJWT(token) {
   }
 }
 
+// Utility to normalize Gmail addresses by removing dots
+function normalizeEmail(email) {
+  if (!email) return '';
+  const lower = email.toLowerCase().trim();
+  if (lower.endsWith('@gmail.com')) {
+    const parts = lower.split('@');
+    const local = parts[0].replace(/\./g, '');
+    return local + '@gmail.com';
+  }
+  return lower;
+}
+
 // --- LOCAL MOCK AUTHENTICATION APIS ---
 
 // GET /api/config - Return Google Client ID dynamically
@@ -136,7 +148,7 @@ app.post('/auth/google', async (req, res) => {
     }
 
     const email = profile.email;
-    const lowerEmail = email.toLowerCase();
+    const normalized = normalizeEmail(email);
     
     console.log("Decoded Google profile:", profile);
 
@@ -152,7 +164,7 @@ app.post('/auth/google', async (req, res) => {
     if (!user) {
       // 2. Otherwise, check if user exists by email but isn't linked to Google yet
       user = await prisma.user.findUnique({
-        where: { email: lowerEmail },
+        where: { email: normalized },
       });
 
       if (user) {
@@ -166,15 +178,16 @@ app.post('/auth/google', async (req, res) => {
         // 3. Auto-resolve role
         let resolvedRole = 'Mentor';
         if (
-          lowerEmail === 'karnamsuhaas@gmail.com' ||
-          lowerEmail === 'shubham202098@gmail.com' ||
-          lowerEmail === 'akshaynerella9@gmail.com'
+          normalized === 'karnamsuhaas@gmail.com' ||
+          normalized === 'suhaaskarnam@gmail.com' ||
+          normalized === 'shubham202098@gmail.com' ||
+          normalized === 'akshaynerella9@gmail.com'
         ) {
           resolvedRole = 'Admin';
-        } else if (lowerEmail === 'founder@vnrvjiet.in') {
+        } else if (normalized === 'founder@vnrvjiet.in') {
           resolvedRole = 'Founder';
-        } else if (lowerEmail.endsWith('@vnrvjiet.in')) {
-          const prefix = lowerEmail.split('@')[0];
+        } else if (normalized.endsWith('@vnrvjiet.in')) {
+          const prefix = normalized.split('@')[0];
           if (prefix.startsWith('volunteer')) {
             resolvedRole = 'Volunteer';
           } else {
@@ -185,7 +198,7 @@ app.post('/auth/google', async (req, res) => {
         // 4. Create the new user record
         user = await prisma.user.create({
           data: {
-            email: lowerEmail,
+            email: normalized,
             name: profile.name || 'VJ User',
             role: resolvedRole,
             googleId: profile.sub,
@@ -282,11 +295,11 @@ app.post('/api/login', async (req, res) => {
       return res.status(400).json({ error: "Email and password are required" });
     }
 
-    const lowerEmail = email.toLowerCase();
+    const normalized = normalizeEmail(email);
 
     // Check if user exists in DB
     const user = await prisma.user.findUnique({
-      where: { email: lowerEmail }
+      where: { email: normalized }
     });
 
     if (!user) {

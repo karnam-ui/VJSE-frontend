@@ -1,6 +1,18 @@
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 
+// Utility to normalize Gmail addresses by removing dots
+function normalizeEmail(email) {
+  if (!email) return '';
+  const lower = email.toLowerCase().trim();
+  if (lower.endsWith('@gmail.com')) {
+    const parts = lower.split('@');
+    const local = parts[0].replace(/\./g, '');
+    return local + '@gmail.com';
+  }
+  return lower;
+}
+
 module.exports = function(prisma) {
   passport.use(
     new GoogleStrategy(
@@ -16,7 +28,7 @@ module.exports = function(prisma) {
           }
 
           const email = profile.emails[0].value;
-          const lowerEmail = email.toLowerCase();
+          const normalized = normalizeEmail(email);
 
           // 1. Check if user already has their googleId linked
           let user = await prisma.user.findUnique({
@@ -29,7 +41,7 @@ module.exports = function(prisma) {
 
           // 2. Otherwise, check if user exists by email but isn't linked to Google yet
           user = await prisma.user.findUnique({
-            where: { email: lowerEmail },
+            where: { email: normalized },
           });
 
           if (user) {
@@ -46,15 +58,16 @@ module.exports = function(prisma) {
           let resolvedRole = 'Mentor'; // Default role for non-institution emails
           
           if (
-            lowerEmail === 'karnamsuhaas@gmail.com' ||
-            lowerEmail === 'shubham202098@gmail.com' ||
-            lowerEmail === 'akshaynerella9@gmail.com'
+            normalized === 'karnamsuhaas@gmail.com' ||
+            normalized === 'suhaaskarnam@gmail.com' ||
+            normalized === 'shubham202098@gmail.com' ||
+            normalized === 'akshaynerella9@gmail.com'
           ) {
             resolvedRole = 'Admin';
-          } else if (lowerEmail === 'founder@vnrvjiet.in') {
+          } else if (normalized === 'founder@vnrvjiet.in') {
             resolvedRole = 'Founder';
-          } else if (lowerEmail.endsWith('@vnrvjiet.in')) {
-            const prefix = lowerEmail.split('@')[0];
+          } else if (normalized.endsWith('@vnrvjiet.in')) {
+            const prefix = normalized.split('@')[0];
             if (prefix.startsWith('volunteer')) {
               resolvedRole = 'Volunteer';
             } else {
@@ -65,7 +78,7 @@ module.exports = function(prisma) {
           // 4. Create the new user record in SQLCipher SQLite DB
           user = await prisma.user.create({
             data: {
-              email: lowerEmail,
+              email: normalized,
               name: profile.displayName || 'VJ User',
               role: resolvedRole,
               googleId: profile.id,
