@@ -1,6 +1,7 @@
 require('dotenv').config();
 const Database = require('better-sqlite3');
 const path = require('path');
+const bcrypt = require('bcrypt');
 
 // 1. Intercept better-sqlite3 with the custom encryption wrapper
 class EncryptedDatabase extends Database {
@@ -48,12 +49,24 @@ async function seed() {
       name: "Suresh Menon",
       email: "lead@gmail.com",
       password: "lead123",
-      role: "Mentor" // Lead/Mentor dashboard role
+      role: "Mentor"
     },
     {
-      name: "VJ Admin",
-      email: "admin@gmail.com",
-      password: "admin123",
+      name: "Karnam Suhaas",
+      email: "karnamsuhaas@gmail.com",
+      password: "VJSEeco@2026",
+      role: "Admin"
+    },
+    {
+      name: "Shubham",
+      email: "shubham202098@gmail.com",
+      password: "VJSEeco@2026",
+      role: "Admin"
+    },
+    {
+      name: "Akshay Nerella",
+      email: "akshaynerella9@gmail.com",
+      password: "VJSEeco@2026",
       role: "Admin"
     }
   ];
@@ -65,7 +78,13 @@ async function seed() {
       });
 
       if (!existing) {
-        const created = await prisma.user.create({ data: u });
+        const hashedPassword = await bcrypt.hash(u.password, 10);
+        const created = await prisma.user.create({ 
+          data: {
+            ...u,
+            password: hashedPassword
+          } 
+        });
         console.log(`✅ Seeded ${u.role}: ${u.email}`);
       } else {
         console.log(`ℹ️ User ${u.email} already exists.`);

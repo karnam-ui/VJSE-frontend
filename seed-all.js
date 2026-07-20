@@ -1,6 +1,7 @@
 require('dotenv').config();
 const Database = require('better-sqlite3');
 const path = require('path');
+const bcrypt = require('bcrypt');
 
 // 1. Intercept better-sqlite3 with the custom encryption wrapper
 class EncryptedDatabase extends Database {
@@ -39,15 +40,21 @@ async function seed() {
       { name: "Rohan Kumar", email: "student@vnrvjiet.in", password: "student123", role: "Student" },
       { name: "Anjali Dev", email: "volunteer@vnrvjiet.in", password: "volunteer123", role: "Volunteer" },
       { name: "Kabir Mehta", email: "founder@vnrvjiet.in", password: "founder123", role: "Founder" },
-      { name: "Suhaas Karnam", email: "suhaas@vnrvjiet.in", password: "founder123", role: "Founder" },
-      { name: "Akshay Nerella", email: "akshay@vnrvjiet.in", password: "founder123", role: "Founder" },
       { name: "Suresh Menon", email: "lead@gmail.com", password: "lead123", role: "Mentor" },
-      { name: "VJ Admin", email: "admin@gmail.com", password: "admin123", role: "Admin" }
+      { name: "Karnam Suhaas", email: "karnamsuhaas@gmail.com", password: "VJSEeco@2026", role: "Admin" },
+      { name: "Shubham", email: "shubham202098@gmail.com", password: "VJSEeco@2026", role: "Admin" },
+      { name: "Akshay Nerella", email: "akshaynerella9@gmail.com", password: "VJSEeco@2026", role: "Admin" }
     ];
 
     const users = {};
     for (const u of usersData) {
-      const created = await prisma.user.create({ data: u });
+      const hashedPassword = await bcrypt.hash(u.password, 10);
+      const created = await prisma.user.create({ 
+        data: {
+          ...u,
+          password: hashedPassword
+        } 
+      });
       users[u.email] = created;
       console.log(`✅ Seeded User (${u.role}): ${u.email}`);
     }
@@ -75,9 +82,7 @@ async function seed() {
 
     // 3. Seed StartupProfiles
     const startupsData = [
-      { userId: users["founder@vnrvjiet.in"].id, name: "VentureSpark", stage: "MVP", focus: "EdTech", currentGoal: "Find pilot partners and advisory in EdTech." },
-      { userId: users["suhaas@vnrvjiet.in"].id, name: "AutoAI Labs", stage: "Ideation", focus: "AI", currentGoal: "Develop initial prototype and secure pre-seed funding." },
-      { userId: users["akshay@vnrvjiet.in"].id, name: "Akshay Ventures", stage: "MVP", focus: "FinTech", currentGoal: "Secure pilot users and connect with mentors." }
+      { userId: users["founder@vnrvjiet.in"].id, name: "VentureSpark", stage: "MVP", focus: "EdTech", currentGoal: "Find pilot partners and advisory in EdTech." }
     ];
 
     for (const s of startupsData) {

@@ -7,12 +7,31 @@ const path = require('path');
 const session = require('express-session');
 const passport = require('passport');
 
+const Database = require('better-sqlite3');
+
+// 1. Intercept the 'better-sqlite3' connection to auto-inject the decryption key
+class EncryptedDatabase extends Database {
+  constructor(filename, options) {
+    super(filename, options);
+    const key = process.env.SQLCIPHER_KEY || 'my-super-secret-password';
+    console.log(`🔐 [Express SQLCipher] Authenticating database: ${filename}`);
+    this.pragma(`key='${key}'`);
+  }
+}
+
+const betterSqlite3Path = require.resolve('better-sqlite3');
+require.cache[betterSqlite3Path].exports = EncryptedDatabase;
+
+// 2. Import Prisma
+const { PrismaBetterSqlite3 } = require('@prisma/adapter-better-sqlite3');
+const { PrismaClient } = require('./generated/prisma');
+
 // 3. Initialize Express and Prisma
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-console.log("📂 Using in-memory Mock Prisma client to bypass better-sqlite3 restriction.");
-const prisma = require('./mock-prisma');
+const adapter = new PrismaBetterSqlite3({ url: 'file:./dev.db' });
+const prisma = new PrismaClient({ adapter });
 
 // Load Passport Configuration
 require('./passport')(prisma);
@@ -146,13 +165,13 @@ app.post('/auth/google', async (req, res) => {
       } else {
         // 3. Auto-resolve role
         let resolvedRole = 'Mentor';
-        if (lowerEmail === 'admin@gmail.com' || lowerEmail === 'admin@vnrvjiet.in') {
-          resolvedRole = 'Admin';
-        } else if (
-          lowerEmail === 'founder@vnrvjiet.in' ||
-          lowerEmail === 'suhaas@vnrvjiet.in' ||
-          lowerEmail === 'akshay@vnrvjiet.in'
+        if (
+          lowerEmail === 'karnamsuhaas@gmail.com' ||
+          lowerEmail === 'shubham202098@gmail.com' ||
+          lowerEmail === 'akshaynerella9@gmail.com'
         ) {
+          resolvedRole = 'Admin';
+        } else if (lowerEmail === 'founder@vnrvjiet.in') {
           resolvedRole = 'Founder';
         } else if (lowerEmail.endsWith('@vnrvjiet.in')) {
           const prefix = lowerEmail.split('@')[0];

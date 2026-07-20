@@ -45,13 +45,13 @@ module.exports = function(prisma) {
           // 3. Auto-resolve role if registering a new user based on email constraints
           let resolvedRole = 'Mentor'; // Default role for non-institution emails
           
-          if (lowerEmail === 'admin@gmail.com' || lowerEmail === 'admin@vnrvjiet.in') {
-            resolvedRole = 'Admin';
-          } else if (
-            lowerEmail === 'founder@vnrvjiet.in' ||
-            lowerEmail === 'suhaas@vnrvjiet.in' ||
-            lowerEmail === 'akshay@vnrvjiet.in'
+          if (
+            lowerEmail === 'karnamsuhaas@gmail.com' ||
+            lowerEmail === 'shubham202098@gmail.com' ||
+            lowerEmail === 'akshaynerella9@gmail.com'
           ) {
+            resolvedRole = 'Admin';
+          } else if (lowerEmail === 'founder@vnrvjiet.in') {
             resolvedRole = 'Founder';
           } else if (lowerEmail.endsWith('@vnrvjiet.in')) {
             const prefix = lowerEmail.split('@')[0];
