@@ -69,12 +69,13 @@ The database schema is defined in `prisma/schema.prisma`.
 ### Models Explained
 
 - **Lead**: Stores information about industry professionals submitted by students. 
-  - Fields: `name`, `email`, `organization`, `skills`, `verified` (Boolean), `status` (Pending/Approved/Rejected), `rejectionReason`, `approvedByVolunteerId`, `approvedAt`. 
+  - Fields: `name`, `email`, `organization`, `skills`, `verified` (Boolean), `status` (Pending/Approved/Rejected), `rejectionReason`, `approvedByVolunteerId`, `approvedAt`, `mentorUserId` (optional link to User account when linked as Mentor). 
   - It also links to the `User` who sourced them via `sourcerId`.
-- **User**: Stores all platform users (Founders, Students, Admins). 
-  - Fields: `email`, `googleId`, `name`, `role`, `rejectionCount` (for flagging sourcers with poor submissions), `isBlocked`, `phone`, `year`, `branch`, `profileCompleted`.
+- **User**: Stores all platform users (Founders, Students, Mentors, Volunteers, Admins). 
+  - Fields: `email`, `googleId`, `name`, `role`, `rejectionCount` (for flagging sourcers with poor submissions), `isBlocked`, `phone`, `year`, `branch`, `profileCompleted`, `designation`, `experience`, `linkedIn`, `bio`, `hasSeenWelcome` (Boolean), `hasLinkedAccount` (Boolean).
 - **StartupProfile**: Stores details about a Founder's startup.
   - Linked 1-to-1 with a Founder user.
+  - Fields: `name`, `stage`, `focus`, `currentGoal`, `tagline`, `problemStatement`, `solution`, `teamSize`, `helpNeeded`, `website`, `demoLink`, `achievement`, `trlLevel`.
 - **ConnectionRequest**: Represents a Founder's request to connect with a Lead.
   - Fields: `status` (Pending/Intro Made/Connected), `sourcerResponse`, `sourcerRespondedAt`, `mentorNotifiedAt`, `sourcerInviteToken`. Links `userId` (Founder) and `leadId`.
 - **ChatMessage**: Stores internal chat messages if founders/leads communicate on-platform.
@@ -84,7 +85,7 @@ The database schema is defined in `prisma/schema.prisma`.
 We use `better-sqlite3-multiple-ciphers` with SQLCipher to ensure the database file (`dev.db`) is encrypted at rest. The `DB_ENCRYPTION_KEY` is critical; if lost, the database cannot be decrypted.
 
 **Custom Migration Approach:**
-Because the standard Prisma CLI (`npx prisma migrate dev`) does not support opening SQLCipher-encrypted SQLite files out of the box, we use custom scripts (`apply-migration.js`, `view-db.js`) that manually instantiate the encrypted database connection and run SQL statements.
+Because the standard Prisma CLI (`npx prisma migrate dev`) does not support opening SQLCipher-encrypted SQLite files out of the box, we use custom scripts (`apply-migration.js`, `apply-migration-2.js`, `apply-migration-3.js`, `view-db.js`) that manually instantiate the encrypted database connection and run SQL statements. Manual SQL migration files are tracked under `prisma/migrations/`.
 
 ---
 
