@@ -36,6 +36,8 @@ model Lead {
   approvedByVolunteerId  Int?
   approvedByVolunteer    User?    @relation("VolunteerApprovals", fields: [approvedByVolunteerId], references: [id])
   approvedAt             DateTime?
+  mentorUserId           Int?
+  mentorUser             User?    @relation("MentorAccount", fields: [mentorUserId], references: [id])
 }
 
 model User {
@@ -58,6 +60,13 @@ model User {
   branch             String?
   profileCompleted   Boolean  @default(false)
   approvedLeads      Lead[]   @relation("VolunteerApprovals")
+  designation        String?
+  experience         String?
+  linkedIn           String?
+  bio                String?
+  hasSeenWelcome     Boolean  @default(false)
+  hasLinkedAccount   Boolean  @default(false)
+  mentorConnections  Lead[]   @relation("MentorAccount")
 }
 
 model StartupProfile {
@@ -69,6 +78,15 @@ model StartupProfile {
   focus       String
   currentGoal String
   createdAt   DateTime @default(now())
+  tagline             String?
+  problemStatement    String?
+  solution            String?
+  teamSize            String?
+  helpNeeded          String?
+  website             String?
+  demoLink            String?
+  achievement         String?
+  trlLevel            String?
 }
 
 model ConnectionRequest {
