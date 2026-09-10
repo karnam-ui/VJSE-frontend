@@ -9,7 +9,14 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const compression = require('compression');
 const { OAuth2Client } = require('google-auth-library');
-const { sendLeadInviteEmail, sendSourcerNotificationEmail, sendWelcomeEmail, sendLeadPlatformInviteEmail } = require('./mailer');
+const {
+  sendSourcerIntroRequestEmail,
+  sendLeadInviteEmail,
+  sendSourcerNotificationEmail,
+  sendWelcomeEmail,
+  sendVolunteerNotificationEmail,
+  sendMentorLoginInviteEmail
+} = require('./mailer');
 
 const Database = require('better-sqlite3');
 

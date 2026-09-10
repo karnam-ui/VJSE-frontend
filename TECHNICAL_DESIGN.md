@@ -230,6 +230,7 @@ The frontend is a Vite-powered React SPA using `react-router-dom` for navigation
 | Feature Add | SourcerRejectionLog as separate table | Counter on User model | A simple counter doesn't tell us *which* leads were rejected or *why*. | Allows detailed auditing of sourcer performance. |
 | Feature Add | Expanded intro flow and user profiles | External tracking | We needed fine-grained timestamps and volunteer approval tracking directly in the DB. | Enables a more detailed tracking of the introduction pipeline. |
 | 2026-09-10 | Added Mentor account linking & enhanced StartupProfile fields | Separate Mentor table | Linked mentors directly to User & Lead models (`mentorUserId`), added onboarding/welcome flags (`hasSeenWelcome`, `hasLinkedAccount`), and 9 startup metric fields (`tagline`, `problemStatement`, `solution`, `teamSize`, `helpNeeded`, `website`, `demoLink`, `achievement`, `trlLevel`). | Supports mentor dashboard, instant account linking, and deep startup profile customization. |
+| 2026-09-10 | Added volunteer/admin notification and mentor login invite emails | Only notifying sourcer | Ensures admins and volunteers have full visibility over intro requests for safety/auditing, and mentors get a seamless login link. | Adds `sendVolunteerNotificationEmail` and `sendMentorLoginInviteEmail` to `mailer.js` and integrates into connection flow. |
 
 ---
 
