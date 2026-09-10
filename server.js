@@ -339,7 +339,9 @@ app.get('/check-auth', async (req, res) => {
           name: freshUser.name,
           email: freshUser.email,
           role: freshUser.role,
-          profileCompleted: freshUser.profileCompleted
+          profileCompleted: freshUser.profileCompleted,
+          hasSeenWelcome: freshUser.hasSeenWelcome,
+          hasLinkedAccount: freshUser.hasLinkedAccount
         };
         return res.json({ user: req.session.user });
       }
@@ -676,6 +678,206 @@ app.delete('/api/leads/:id', requireRole('Admin', 'Volunteer'), async (req, res)
   }
 });
 
+// --- MENTOR APIS ---
+
+// POST /api/users/link-mentor-account
+// Called when mentor logs in and confirms their lead record matches them
+app.post('/api/users/link-mentor-account', requireAuth, async (req, res) => {
+  try {
+    const userId = req.session.user.id;
+    const { leadId, confirmed } = req.body;
+
+    if (!leadId || confirmed === undefined) {
+      return res.status(400).json({ error: 'leadId and confirmed are required' });
+    }
+
+    if (!confirmed) {
+      return res.json({ linked: false, message: 'Account not linked' });
+    }
+
+    // Link lead record to user account
+    await prisma.lead.update({
+      where: { id: parseInt(leadId) },
+      data: { mentorUserId: userId }
+    });
+
+    // Mark user as having linked their account
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: { hasLinkedAccount: true }
+    });
+
+    req.session.user = {
+      ...req.session.user,
+      hasLinkedAccount: true
+    };
+
+    console.log(`Mentor account linked: userId=${userId} leadId=${leadId}`);
+    res.json({ linked: true, user: req.session.user });
+  } catch (error) {
+    console.error('Error linking mentor account:', error);
+    res.status(500).json({ error: 'Failed to link account' });
+  }
+});
+
+// GET /api/users/check-mentor-match
+// Checks if logged in user email matches any lead record
+app.get('/api/users/check-mentor-match', requireAuth, async (req, res) => {
+  try {
+    const userEmail = req.session.user.email;
+
+    const matchedLead = await prisma.lead.findFirst({
+      where: {
+        email: userEmail,
+        mentorUserId: null
+      },
+      include: {
+        sourcer: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            year: true,
+            branch: true
+          }
+        }
+      }
+    });
+
+    res.json({ matched: !!matchedLead, lead: matchedLead || null });
+  } catch (error) {
+    console.error('Error checking mentor match:', error);
+    res.status(500).json({ error: 'Failed to check mentor match' });
+  }
+});
+
+// POST /api/users/mark-welcome-seen
+app.post('/api/users/mark-welcome-seen', requireAuth, async (req, res) => {
+  try {
+    const userId = req.session.user.id;
+    await prisma.user.update({
+      where: { id: userId },
+      data: { hasSeenWelcome: true }
+    });
+    req.session.user = { ...req.session.user, hasSeenWelcome: true };
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error marking welcome seen:', error);
+    res.status(500).json({ error: 'Failed to mark welcome seen' });
+  }
+});
+
+// GET /api/mentor/dashboard
+// Returns only data relevant to the logged in mentor
+// Mentors cannot see other mentors
+app.get('/api/mentor/dashboard', requireRole('Mentor'), async (req, res) => {
+  try {
+    const userId = req.session.user.id;
+    const userEmail = req.session.user.email;
+
+    // Find mentor's lead record
+    const myLead = await prisma.lead.findFirst({
+      where: {
+        OR: [
+          { mentorUserId: userId },
+          { email: userEmail }
+        ]
+      },
+      include: {
+        sourcer: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            year: true,
+            branch: true
+          }
+        },
+        connections: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    // Get all startup profiles for mentor to browse
+    const startups = await prisma.startupProfile.findMany({
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    // Get notifications for this mentor
+    const notifications = [];
+    if (myLead?.sourcer) {
+      notifications.push({
+        id: 'sourcer-info',
+        type: 'info',
+        message: `Your contact details were shared by ${myLead.sourcer.name}. They will reach out to you personally once a startup requests an introduction.`,
+        sourcerName: myLead.sourcer.name,
+        createdAt: myLead.createdAt,
+        permanent: true
+      });
+    }
+
+    res.json({
+      myLead,
+      startups,
+      notifications,
+      connections: myLead?.connections || []
+    });
+  } catch (error) {
+    console.error('Error fetching mentor dashboard:', error);
+    res.status(500).json({ error: 'Failed to fetch mentor dashboard' });
+  }
+});
+
+// POST /api/mentor/profile
+app.post('/api/mentor/profile', requireRole('Mentor'), async (req, res) => {
+  try {
+    const userId = req.session.user.id;
+    const { designation, experience, linkedIn, bio } = req.body;
+
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        designation: designation?.trim(),
+        experience: experience?.trim(),
+        linkedIn: linkedIn?.trim(),
+        bio: bio?.trim(),
+        profileCompleted: true
+      }
+    });
+
+    req.session.user = {
+      ...req.session.user,
+      profileCompleted: true
+    };
+
+    res.json({ success: true, user: updatedUser });
+  } catch (error) {
+    console.error('Error updating mentor profile:', error);
+    res.status(500).json({ error: 'Failed to update mentor profile' });
+  }
+});
+
+
 // --- STARTUP PROFILE ENDPOINTS ---
 
 // GET /api/startup - Get startup profile for a user
@@ -687,7 +889,24 @@ app.get('/api/startup', requireAuth, async (req, res) => {
     }
 
     const profile = await prisma.startupProfile.findUnique({
-      where: { userId: parseInt(userId) }
+      where: { userId: parseInt(userId) },
+      select: {
+        id: true,
+        userId: true,
+        name: true,
+        stage: true,
+        focus: true,
+        currentGoal: true,
+        tagline: true,
+        problemStatement: true,
+        solution: true,
+        teamSize: true,
+        helpNeeded: true,
+        website: true,
+        demoLink: true,
+        achievement: true,
+        trlLevel: true
+      }
     });
 
     res.json(profile || null);
@@ -700,16 +919,28 @@ app.get('/api/startup', requireAuth, async (req, res) => {
 // POST /api/startup - Create or update startup profile
 app.post('/api/startup', requireRole('Founder'), async (req, res) => {
   try {
-    const { userId, name, stage, focus, currentGoal } = req.body;
+    const {
+      userId, name, stage, focus, currentGoal,
+      tagline, problemStatement, solution,
+      teamSize, helpNeeded, website, demoLink,
+      achievement, trlLevel
+    } = req.body;
     if (!userId || !name || !stage || !focus || !currentGoal) {
       return res.status(400).json({ error: "Missing required fields (userId, name, stage, focus, currentGoal)" });
     }
 
     const uId = parseInt(userId);
+    const profileData = {
+      name, stage, focus, currentGoal,
+      tagline, problemStatement, solution,
+      teamSize, helpNeeded, website, demoLink,
+      achievement, trlLevel
+    };
+
     const profile = await prisma.startupProfile.upsert({
       where: { userId: uId },
-      update: { name, stage, focus, currentGoal },
-      create: { userId: uId, name, stage, focus, currentGoal }
+      update: profileData,
+      create: { userId: uId, ...profileData }
     });
 
     console.log("Upserted startup profile:", profile);
@@ -875,6 +1106,42 @@ app.post('/api/connections', requireRole('Founder'), emailLimiter, async (req, r
           sourcerInviteToken,
           connectionId: conn.id
         });
+      }
+
+      // Notify all volunteers and admin via email
+      try {
+        const volunteersAndAdmins = await prisma.user.findMany({
+          where: {
+            role: { in: ['Volunteer', 'Admin'] },
+            isBlocked: false
+          },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true
+          }
+        });
+
+        const { sendVolunteerNotificationEmail } = require('./mailer');
+        for (const staff of volunteersAndAdmins) {
+          await sendVolunteerNotificationEmail({
+            staffEmail: staff.email,
+            staffName: staff.name,
+            staffRole: staff.role,
+            founderName: founder?.name || 'A Founder',
+            startupName: founder?.name || 'A VJ Startup',
+            mentorName: lead.name,
+            mentorDomain: lead.domain,
+            sourcerName: lead.sourcer?.name || 'Unknown',
+            sourcerEmail: lead.sourcer?.email || 'Unknown',
+            sourcerPhone: lead.sourcer?.phone || 'Not provided',
+            sourcerYear: lead.sourcer?.year || 'Not provided',
+            sourcerBranch: lead.sourcer?.branch || 'Not provided'
+          });
+        }
+      } catch (volErr) {
+        console.error('Volunteer notification email failed:', volErr.message);
       }
     } catch (emailErr) {
       console.error('Email sending failed:', emailErr.message);
